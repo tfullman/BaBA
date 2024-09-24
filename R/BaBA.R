@@ -1,21 +1,14 @@
-# # for debugging
-# animal = pronghorn
-# barrier = fences
-# d = 110
-# interval = NULL
-# b_time = 4
-# p_time = 36
-# w = 168
-# units = "hours"
-# max_cross = 0
-# tolerance = 0
-# sd_multiplier = 1
-# round_fixes = T
-# exclude_buffer = F
-# export_images = F
+## Wrapper function - to be developed at the end
+# BaBA <- function(caribou = FALSE, ...){
+#   if(caribou){
+#     BaBA_caribou()
+#   } else{
+#     BaBA_default()
+#   }
+# }
 
 
-BaBA <-
+BaBA_default <-
   function(animal, barrier, d, interval = NULL, b_time = 4, p_time = 36, w = 168,
            tolerance = 0, units = "hours", max_cross = 0,  sd_multiplier = 1,
            exclude_buffer = F, round_fixes = F, export_images = F,
