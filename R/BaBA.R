@@ -529,3 +529,1005 @@ BaBA_default <-
                 classification = event_df))
   }
 
+
+BaBA_caribou <-
+  function(animal, barrier, d, interval = NULL, tolerance = 0, units = "hours",
+           sd_multiplier = 1, round_fixes = FALSE, crs = NULL, 
+           export_images = FALSE, img_path = "event_imgs", img_prefix = NULL,
+           img_suffix = NULL, img_background = NULL) {
+    
+    if(export_images) {
+      if(!dir.exists(img_path)) dir.create(img_path)
+    }
+    
+    ## Prepare parameters and check input
+    if (class(animal)[1] != "sf") stop("animal needs to be an sf object")
+    if (sf::st_geometry_type(animal)[1] != 'POINT') stop("animal needs to have a POINT geometry")
+    if (class(barrier)[1] != "sf") stop("barrier needs to be an sf object")
+    if (!(sf::st_geometry_type(barrier)[1] %in% c('MULTILINESTRING', 'LINESTRING'))) stop("barrier needs to have either a LINESTRING or MULTILINESTRING geometry")
+    if (!"date" %in% names(animal)) stop("Please rename the date column to 'date'")
+    if (!"Animal.ID" %in% names(animal)) stop("Please rename the individual ID column to 'Animal.ID'")
+    if (!(inherits(animal$date, "POSIXct"))) stop("Date needs to be 'POSIXct' format")
+    if (sum(is.na(animal$date)) > 0) stop("Please exclude rows where date is NA")
+    if(is.null(crs)) crs <- sf::st_crs(animal)
+    if(is.null(crs)) warning("No crs specified. assuming crs for animal applies to all spatial data") 
+    if(sf::st_crs(animal) != sf::st_crs(crs)) stop("Coordinate reference system of animal must match crs")
+    if(sf::st_crs(barrier) != sf::st_crs(crs)) stop("Coordinate reference system of barrier must match crs")
+    
+    ## Round fixes, if desired. NOTE: This is only intended to account for minor variation in fix acquisition time, not to clean irregular data. Please clean data to remove bursts of different fix intervals prior to conducting this analysis.
+    if(round_fixes){
+      animal$date <- round_date(animal$date, unit = units)
+      interval_per_individual <- tapply(animal$date, animal$Animal.ID, function(x) names(which.max(table(round(as.numeric(diff(x), units = units),0)))))
+    } else {
+      interval_per_individual <- tapply(animal$date, animal$Animal.ID, function(x) names(which.max(table(as.numeric(diff(x), units = units)))))
+    }
+    if(is.null(interval)) { ## figure out interval (as the most frequent difference in timestamp) if not provided but give an error if not the same for all individuals
+      if(all(interval_per_individual == interval_per_individual[1])) interval <- as.numeric(interval_per_individual[1]) else stop("Not all individuals have been sampled at the same frequency. Run individuals with different intervals seperately, or double-check whether your date column is cleaned.")
+    } else {
+      if (any(as.numeric(interval_per_individual) > interval, na.rm = T)) stop("BaBA interval needs to be no smaller than the actual data interval. Also double-check whether your date column is cleaned.") 
+    }
+    
+    
+    #### Classification step 1: generate encounter event data.frame
+    
+    ## Create point ID by individual and add season indicators
+    animal <-
+      animal %>% 
+      dplyr::arrange(Animal.ID, date) %>% 
+      dplyr::group_by(Animal.ID) %>% 
+      dplyr::mutate(ptsID = 1:dplyr::n()) %>% 
+      dplyr::ungroup() %>% 
+      ## Add season indicator here so that I can easily separate out each point by
+      ## season for seasonal buffer exclusion below. I will use the WAH season breaks
+      ## from the Joly and Cameron 2023 Vital Sign caribou report:
+      ## Spring migration: Apr 1 - May 27
+      ## Calving: May 28 - Jun 14
+      ## Insect relief: Jun 15 - Jul 14
+      ## Late summer: Jul 15 - Aug 31
+      ## Fall migration: Sep 1 - Nov 30
+      ## Winter: Dec 1 - Mar 31
+      mutate(season = case_when(date >= paste0(year(date), '-04-01') & date < paste0(year(date), '-05-28') ~ 'spring_mig',
+                                date >= paste0(year(date), '-05-28') & date < paste0(year(date), '-06-15') ~ 'calving',
+                                date >= paste0(year(date), '-06-15') & date < paste0(year(date), '-07-15') ~ 'insect',
+                                date >= paste0(year(date), '-07-15') & date < paste0(year(date), '-09-01') ~ 'late_summer',
+                                date >= paste0(year(date), '-09-01') & date < paste0(year(date), '-12-01') ~ 'fall_mig',
+                                TRUE ~ 'winter'))
+    
+    ## Calculate the distance to nearest barrier for each point in the
+    ## animal dataset, as well as the identity of that barrier. This
+    ## assumes that the barrier file has a "Name" column that uniquely
+    ## identifies each barrier segment. Add the nearest barrier and minimum
+    ## distance to barrier to the animal object.
+    bar_dist <- sf::st_distance(x = animal, y = barrier)
+    animal$bar_min <- barrier$Name[apply(bar_dist, 1, which.min)]
+    animal$bar_dist_km <- apply(bar_dist, 1, function(x) x[which.min(x)])/1000
+    
+    ## Explicitly suppress constant geometry assumption warning by confirming attribute is constant throughout the geometry. See https://github.com/r-spatial/sf/issues/406 for details.
+    sf::st_agr(animal) <- 'constant'   
+    sf::st_agr(barrier) <- 'constant'
+    
+    ## Create a point version of the barrier lines
+    barrier_pts_all <-
+      barrier %>% 
+      ## Convert the line to a point geometry
+      sf::st_cast(to = 'MULTIPOINT', warn = FALSE) %>% ## Do this first to retain all pieces. Turning off warnings since we are not worried about attributes, just locations.
+      sf::st_cast(to = 'POINT', warn = FALSE) %>%   ## Do this so that each point gets its own distance. Turning off warnings since we are not worried about attributes, just locations.
+      ## Add helpful information used in later steps
+      dplyr::mutate(
+        ## Assign a unique id (barID) to each point
+        barID = 1:nrow(.),
+        ## Add in the xy coords as columns, as expected by calc_angle()
+        x = sf::st_coordinates(.)[,1],
+        y = sf::st_coordinates(.)[,2])
+    
+    ## Iterate through each barrier, creating a polygon on each side of the
+    ## barrier that will be used below to identify true crossings, storing the
+    ## results in a pre-made list with length and names corresponding to the
+    ## unique barriers
+    bar_list <- vector('list', length(unique(barrier_pts_all$Name)))
+    names(bar_list) <- unique(barrier_pts_all$Name)
+    for(z in 1:length(unique(barrier_pts_all$Name))){
+      ## Identify the barrier of interest
+      bar_tmp <- 
+        barrier_pts_all %>% 
+        dplyr::filter(Name == unique(barrier_pts_all$Name)[z])
+      
+      ## Calculate the mean direction of the barrier
+      bar_ang_mean <-
+        bar_tmp %>% 
+        ## Calculate angles
+        calc_angle() %>% 
+        circular::circular(zero = 0) %>% 
+        ## Calculate the mean value
+        circular::mean.circular(na.rm = TRUE) %>% 
+        ## Convert units to degrees in the 360 deg range
+        circular::conversion.circular(units = 'degrees') %% 360
+      
+      ## Identify the distance that should be extended around the barrier. For
+      ## most barriers this should be 2d, using the barrier-specific d buffer
+      ## distance. However, the Dalton Highway is so large that this needs to be
+      ## increased. Preliminary testing found that 10d is suitable.
+      d_tmp <- 
+        ifelse(length(d) > 1,
+               d[which(barrier$Name == bar_tmp$Name[1])],
+               d)
+      d_target <- ifelse(bar_tmp$Name[1] == 'Dalton', 10*d, 2*d)
+      
+      ## First extend the barrier on either end in the predominant movement
+      ## direction
+      pt0a <-
+        line_extend(pt = bar_tmp[1, c('x','y')] %>% 
+                      sf::st_drop_geometry(),
+                    angle = bar_ang_mean + 180 %% 360,
+                    len = d_target) %>% 
+        sf::st_as_sf(coords = c('x', 'y'), crs = crs, agr = 'constant') %>% 
+        dplyr::slice(2)
+      pt0b <-
+        line_extend(pt = bar_tmp[nrow(bar_tmp), c('x','y')] %>%
+                      sf::st_drop_geometry(),
+                    angle = bar_ang_mean,
+                    len = d_target) %>% 
+        sf::st_as_sf(coords = c('x', 'y'), crs = crs, agr = 'constant') %>% 
+        dplyr::slice(2)
+      
+      ## Then extend these points 90 degrees in either direction to get the
+      ## outer polygon edges
+      pt1a <-  
+        line_extend(pt = pt0a %>%
+                      st_coordinates(),
+                    angle = bar_ang_mean + 90 %% 360,
+                    len = d_target) %>% 
+        as.data.frame() %>% 
+        sf::st_as_sf(coords = c('X', 'Y'), crs = crs, agr = 'constant') %>% 
+        dplyr::slice(2)
+      pt2a <-  
+        line_extend(pt = pt0a %>%
+                      st_coordinates(),
+                    angle = bar_ang_mean - 90 %% 360,
+                    len = d_target) %>% 
+        as.data.frame() %>% 
+        sf::st_as_sf(coords = c('X', 'Y'), crs = crs, agr = 'constant') %>% 
+        dplyr::slice(2)
+      pt1b <-  
+        line_extend(pt = pt0b %>%
+                      st_coordinates(),
+                    angle = bar_ang_mean + 90 %% 360,
+                    len = d_target) %>% 
+        as.data.frame() %>% 
+        sf::st_as_sf(coords = c('X', 'Y'), crs = crs, agr = 'constant') %>% 
+        dplyr::slice(2)
+      pt2b <-  
+        line_extend(pt = pt0b %>%
+                      st_coordinates(),
+                    angle = bar_ang_mean - 90 %% 360,
+                    len = d_target) %>% 
+        as.data.frame() %>% 
+        sf::st_as_sf(coords = c('X', 'Y'), crs = crs, agr = 'constant') %>% 
+        dplyr::slice(2)
+      
+      ## Create a polygon on each side of the barrier using these points and the
+      ## barrier points
+      poly1 <-
+        dplyr::bind_rows(pt0a,
+                         bar_tmp %>% 
+                           dplyr::select(geometry),
+                         pt0b,
+                         pt1b,
+                         pt1a,
+                         pt0a) %>% 
+        dplyr::summarize(geometry = sf::st_combine(geometry)) %>% 
+        sf::st_cast(to = 'POLYGON')
+      poly2 <-
+        dplyr::bind_rows(pt0a,
+                         bar_tmp %>% 
+                           dplyr::select(geometry),
+                         pt0b,
+                         pt2b,
+                         pt2a,
+                         pt0a) %>% 
+        dplyr::summarize(geometry = sf::st_combine(geometry)) %>% 
+        sf::st_cast(to = 'POLYGON')
+      
+      ## Combine these into a single two-feature polygon object and store it in
+      ## the appropriate place in the barrier list
+      bar_list[z] <- rbind(poly1, poly2)
+    }
+    
+    ## Create buffer around barrier for identifying encounters
+    print("locating encounter events...")
+    barrier_buffer <- 
+      barrier %>% 
+      sf::st_buffer(dist = d, nQuadSegs = 5) %>%   ## Note that nQuadSegs is set to 5 as this was the default value for rgeos::gBuffer in previous versions of BaBA
+      sf::st_union()
+    
+    ## Extract points that fall inside the buffer
+    encounter <- sf::st_intersection(animal, barrier_buffer)
+    
+    if (nrow(encounter) == 0) stop("no barrier encounter detected.")
+    
+    ## Create an object to hold crossing coordinates
+    cross_coords <- NULL
+    
+    ## Create unique burstIDs
+    for(i in unique(encounter$Animal.ID)){
+      if (nrow(encounter %>% dplyr::filter(Animal.ID == i)) == 0) {
+        warning(paste0 ("Individual ", i, " has no locations overlapped with the barrier buffer and is eliminated from analysis." ))
+        next()
+      }
+      
+      ## Prep encounter data for the current animal
+      encounter_i <-
+        encounter %>% 
+        dplyr::filter(Animal.ID == i) %>% 
+        ## Add indicator of point difference. Subtract one from each so that
+        ## subsequent ptsIDs get a value of zero, which will be useful for
+        ## calculating the burstIDs below.
+        dplyr::mutate(ptdiff = ptsID - dplyr::lag(ptsID) - 1)
+      ## Set the first ptdiff value to zero
+      encounter_i$ptdiff[1] <- 0
+      
+      ## Include points where the animal stepped outside the buffer during an
+      ## encounter but within the tolerance threshold. These points will still
+      ## be counted as within the same encounter. Note this is a different use
+      ## of tolerance from the original BaBA() code. Instead of the amount of
+      ## time in which the animal can be outside the buffer and still be part of
+      ## the same encounter, it is now the number of steps (i.e., ptIDs) that an
+      ## animal can be out of the buffer and still count. This is conceptually
+      ## the same, but with different units.
+      if(any(encounter_i$ptdiff > 0 & encounter_i$ptdiff <= tolerance, na.rm = TRUE)){
+        idx_pts_of_interest <- which(encounter_i$ptdiff > 0 & encounter_i$ptdiff <= tolerance)
+        for(pt in idx_pts_of_interest) {
+          ## Identify pts to fetch
+          ptsID_of_interest_B <- encounter_i$ptsID[pt]
+          ptsID_of_interest_A <- encounter_i$ptsID[pt-1]
+          
+          ## Fetch points outside of the buffer within tolerance
+          fetched_pt <- 
+            animal %>% 
+            dplyr::filter(Animal.ID == i & 
+                            ptsID > ptsID_of_interest_A & 
+                            ptsID < ptsID_of_interest_B)
+          
+          ## If there are no points outside of the buffer that means there is
+          ## missing data. Since the missing data are still within the
+          ## tolerance, we consider ptdiff=0 so the points before and after will
+          ## be in the same event.
+          if (nrow(fetched_pt) == 0) {  
+            encounter_i$ptdiff[pt] <- 0
+            next() } 
+          else {
+            fetched_pt$ptdiff <- 0 
+            ## Reset ptdiff  to 0
+            encounter_i$ptdiff[pt] <- 0 
+            ## Append fetched points 
+            if(pt == idx_pts_of_interest[1]) {fetched_pts <- fetched_pt} else if (exists("fetched_pts")) { fetched_pts <- rbind(fetched_pts, fetched_pt) } else {fetched_pts <- fetched_pt}
+          }
+        }
+        
+        ## Add fetched pts to the encounter
+        encounter_i <- rbind(encounter_i, fetched_pts)
+        ## Reorder the encounter data
+        encounter_i <- encounter_i[order(encounter_i$ptsID), ]
+      }
+      
+      ## Identify unique burstIDs using the cumulative sum of the ptdiff column to identify unique burst IDs (with animalID) 
+      encounter_i$burstID <- paste(i, cumsum(encounter_i$ptdiff), sep = "_")
+      
+      ## Check for barrier crossing
+      
+      ## Convert the encounter points with more than one record for a given
+      ## burstID into a movement line
+      mov_seg_i <-
+        encounter_i %>% 
+        dplyr::add_count(burstID) %>% 
+        dplyr:: filter(n > 1) %>% 
+        dplyr::group_by(burstID) %>%
+        dplyr::summarize(do_union = FALSE) %>%
+        sf::st_cast(to = 'LINESTRING')
+      ## Identify the intersection coordinates
+      sf::st_agr(mov_seg_i) <- 'constant'   ## Suppress warning
+      int_pts <-
+        mov_seg_i %>% 
+        sf::st_intersection(barrier) %>% 
+        sf::st_cast(to = 'MULTIPOINT')
+      if(nrow(int_pts) > 0){
+        int_coords <-
+          int_pts %>% 
+          sf::st_coordinates() %>% 
+          dplyr::as_tibble() %>% 
+          dplyr::mutate(burstID = int_pts$burstID[.$L1]) %>% 
+          dplyr::select(-L1)  ## For cleanliness remove L1
+        ## Add the coordinates to the output
+        cross_coords <- rbind(cross_coords, int_coords)
+      }
+      
+      ## Add into encounter_complete
+      if(i == unique(encounter$Animal.ID[1])) encounter_complete <- encounter_i else encounter_complete <- rbind(encounter_complete, encounter_i)
+    }
+    
+    ## Add indicators to encounter_complete of whether each location represents
+    ## the endpoint of a segment where a crossing was indicated and where a true
+    ## crossing occurred. By default I will indicate no for all and then update
+    ## those for which a crossing is indicated.
+    encounter_complete$cross_ind <- 0
+    encounter_complete$cross_true <- 0
+    
+    ## Identify the encounters with multiple nearest barriers and assign new
+    ## columns that can be used to indicate unique sequences of nearest barrier
+    ## locations.
+    bursts_updated_barrier <-
+      encounter_complete %>% 
+      dplyr::left_join(
+        encounter_complete %>% 
+          dplyr::group_by(burstID) %>% 
+          dplyr::summarize(nbar = length(unique(bar_min))) %>% 
+          sf::st_drop_geometry(),
+        by = 'burstID') %>% 
+      dplyr::filter(nbar > 1) %>% 
+      dplyr::group_by(burstID) %>% 
+      dplyr::mutate(
+        bar_change = ifelse(lag(bar_min) != bar_min, 1, 0),
+        bar_change = ifelse(is.na(bar_change), 0, bar_change),
+        bar_dif = cumsum(bar_change)) %>% 
+      dplyr::ungroup()
+    
+    ## Run through those encounters for which crossings were indicated and see
+    ## if they actually occurred
+    bursts_updated_cross <- NULL
+    encounter_complete$cross_bar <- NA
+    encounter_complete$cross_x <- NA
+    encounter_complete$cross_y <- NA
+    for(k in unique(cross_coords$burstID)){
+      ## Pull data for the individual of interest
+      encounter_i <- 
+        encounter_complete %>% 
+        dplyr::filter(burstID == k)
+      
+      ## Iterate through each pair of encounter points to check for indicated and
+      ## true crossings
+      for(j in 1:(nrow(encounter_i)-1)){
+        pts_tmp <- encounter_i[j:(j+1),]
+        line_tmp <- pts_tmp %>% 
+          dplyr::summarize(do_union = FALSE) %>%
+          sf::st_cast(to = 'LINESTRING')
+        
+        ## Check for barrier intersection
+        int_check <- sf::st_intersection(line_tmp, barrier)
+        
+        ## If there's an intersection, check for points on different sides of the
+        ## barrier to indicate a true crossing
+        if(nrow(int_check) > 0){
+          ## Indicate that a crossing was indicated. Using j + 1 sets this to be the
+          ## endpoint of the crossing (i.e., after the purported crossing has
+          ## occurred), which is important when using the crossing information to
+          ## split encounters into sub-bursts below.
+          encounter_i$cross_ind[j+1] <- 1
+          
+          ## Pull the road side polygons for the intersected barrier
+          poly.tmp <-
+            bar_list %>% 
+            pluck(int_check$Name)
+          
+          ## Crop the points with each polygon, setting st_arg() to avoid a warning
+          sf::st_agr(pts_tmp) <- 'constant'
+          enc_poly1 <- sf::st_intersection(pts_tmp, poly.tmp[1])
+          enc_poly2 <- sf::st_intersection(pts_tmp, poly.tmp[2])
+          
+          ## If either sample size is 0, indicate a false crossing, otherwise
+          ## indicate a true crossing
+          encounter_i$cross_true[j+1] <- ifelse(nrow(enc_poly1) == 0 | nrow(enc_poly2) == 0, 0, 1)
+          
+          ## If a true crossing occurred, record the barrier that was crossed
+          ## and location. If multiple barriers were crossed, combine names, if
+          ## multiple locations along a barrier were crossed in the single step,
+          ## return the location of the first.
+          if(encounter_i$cross_true[j+1] == 1){
+            encounter_i$cross_bar[j+1] <- paste(int_check$Name, collapse = '_')
+            encounter_i$cross_x[j+1] <- dplyr::first(sf::st_coordinates(int_check)[,1])
+            encounter_i$cross_y[j+1] <- dplyr::first(sf::st_coordinates(int_check)[,2])
+          }
+        }
+      }
+      
+      ## Add column to encounter_i that indicates parts before/after crossing,
+      ## which I can use to identify different sub-bursts based on crossing events.
+      encounter_i$cumcross <- cumsum(encounter_i$cross_true)
+      
+      ## Output the results
+      bursts_updated_cross <- rbind(bursts_updated_cross, encounter_i)
+    }
+    
+    ## Incorporate the extra columns from the barrier and crossing objects into
+    ## encounter_complete and use them to make a joint burstID column
+    encounter_complete <-
+      encounter_complete %>% 
+      ## Make a unique column that is Animal.ID_ptsID and use that to merge the data
+      dplyr::mutate(join_col = paste(Animal.ID, ptsID, sep = '_')) %>% 
+      dplyr::left_join(
+        bursts_updated_barrier %>% 
+          dplyr::mutate(join_col = paste(Animal.ID, ptsID, sep = '_')) %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::select(join_col, bar_dif),
+        by = 'join_col') %>% 
+      dplyr::left_join(
+        bursts_updated_cross %>% 
+          dplyr::mutate(join_col = paste(Animal.ID, ptsID, sep = '_')) %>% 
+          sf::st_drop_geometry() %>% 
+          dplyr::select(join_col, cross_ind, cross_true, cross_bar, cross_x, cross_y, cumcross),
+        by = 'join_col') %>% 
+      ## Create updated columns with the desired information
+      dplyr::mutate(
+        ## Deal with NAs in bar_dif and cumcross, to allow summing
+        bar_dif2 = ifelse(is.na(bar_dif), 0, bar_dif),
+        cumcross2 = ifelse(is.na(cumcross), 0, cumcross),
+        ## Sum barrier differences and cumulative crossing to get unique indicators
+        ## (per burstID) of barrier/crossing events
+        barcross = bar_dif2 + cumcross2) %>% 
+      ## Add in the by-group sum of cumcross to each record
+      dplyr::group_by(burstID) %>% 
+      dplyr::mutate(sum_cumcross = sum(cumcross, na.rm = TRUE)) %>% 
+      dplyr::ungroup() %>% 
+      ## Add additional needed information
+      dplyr::mutate(
+        ## Create a new burstID as the combination of burstID and barcross, if
+        ## those exist
+        burstID2 = ifelse(is.na(bar_dif) & (is.na(cumcross) | sum_cumcross == 0),
+                          burstID,
+                          paste(burstID, barcross, sep = '_')),
+        ## Create updated columns for indicated and true crossings
+        cross_ind = ifelse(is.na(cross_ind.y), cross_ind.x, cross_ind.y),
+        cross_true = ifelse(is.na(cross_true.y), cross_true.x, cross_true.y)) %>% 
+      ## Retain only the needed columns
+      dplyr::select(Animal.ID:geometry, burstID = burstID2, cross_ind, cross_true,
+                    cross_bar = cross_bar.y, cross_x = cross_x.y, cross_y = cross_y.y)
+    
+    
+    ## Rename as encounter (encounter_complete may be bigger as it includes extra
+    ## points that are within tolerance)
+    encounter <- encounter_complete
+    
+    
+    
+    #### Classification step 2: classify events
+    
+    print("classifying behaviors...") 
+    ## Open progress bar
+    pb <- utils::txtProgressBar(style = 3)
+    
+    ## Create empty object that will hold results
+    event_df <- NULL
+    ## Keep the encounter_i objects for use in plotting specific encounters
+    encounter_i_out <- vector('list', length(unique(encounter$burstID)))
+    names(encounter_i_out) <- unique(encounter$burstID)
+    
+    ## Run classification procedure for each encounter
+    for(i in unique(encounter$burstID)) {
+      ## Update progressbar
+      utils::setTxtProgressBar(pb, which(unique(encounter$burstID) == i)/length(unique(encounter$burstID)))
+      
+      ## Subset down to the specific encounter and animal data
+      encounter_i <- encounter[encounter$burstID == i, ]
+      animal_i <- animal[animal$Animal.ID == encounter_i$Animal.ID[1],]
+      
+      ## Expand the encounter by one point on either side to include the step
+      ## that brings the animal within the barrier buffer. This will also
+      ## include the step that takes the animal from one nearest barrier to
+      ## another within the same buffer, if applicable.
+      encounter_i <-
+        animal_i %>% 
+        dplyr::filter(ptsID == encounter_i$ptsID[1] - 1 |
+                        ptsID == encounter_i$ptsID[nrow(encounter_i)] + 1) %>% 
+        ## Reorder to match encounter_i
+        dplyr::select(Animal.ID:y, ptsID, season, bar_min, bar_dist_km, geometry) %>%
+        ## Add the burstID
+        dplyr::mutate(burstID = encounter_i$burstID[1]) %>% 
+        ## Combine with existing encounter_i data
+        dplyr::bind_rows(encounter_i) %>% 
+        ## Rearrange to be in ptsID order
+        dplyr::arrange(ptsID)
+      
+      ## Calculate duration and straightness
+      duration <-  difftime (encounter_i$date[nrow(encounter_i)], encounter_i$date[1], units = units)
+      if(round_fixes) duration <- round(duration)
+      straightness_i <- strtns(encounter_i)
+      
+      ## Calculate turning angles of the encounter and add them to encounter_i
+      encounter_i$angle <- 
+        calc_angle(x = encounter_i) %>% 
+        circular::circular(zero = 0) %>%
+        circular::conversion.circular(units = 'degrees') %% 360
+      
+      ## Check whether the first step of the expanded burst crosses a road to
+      ## pick up situations where the animal took a step wider than d leading to
+      ## an unidentified crossing. This is only needed if a crossing is not
+      ## already indicated for the second location of the burst (i.e., the
+      ## endpoint of the first step). It also is only evaluated if the previous
+      ## location is within 3 days of the current location, so that excessive
+      ## missing data does not lead to an indication of a crossing where one is
+      ## unclear.
+      if(encounter_i$cross_ind[2] == 0 &
+         difftime(encounter_i$date[2], encounter_i$date[1], units = units) < 72){
+        pts_tmp <- encounter_i[1:2,]
+        line_tmp <- pts_tmp %>% 
+          dplyr::summarize(do_union = FALSE) %>%
+          sf::st_cast(to = 'LINESTRING')
+        sf::st_agr(pts_tmp) <- 'constant'
+        int_check <- sf::st_intersection(line_tmp, barrier)
+        
+        ## If there's an intersection, check for points on different sides of the
+        ## barrier to indicate a true crossing
+        if(nrow(int_check) > 0){
+          ## Indicate that a crossing was indicated. As is done above, indicate this
+          ## for the endpoint of the crossing (i.e., after the purported crossing
+          ## has occurred).
+          encounter_i$cross_ind[2] <- 1
+          
+          ## Pull the road side polygons for the intersected barrier
+          poly.tmp <-
+            bar_list %>% 
+            pluck(int_check$Name)
+          
+          ## Crop the points with each polygon
+          enc_poly1 <- sf::st_intersection(pts_tmp, poly.tmp[1])
+          enc_poly2 <- sf::st_intersection(pts_tmp, poly.tmp[2])
+          
+          ## If either sample size is 0, indicate a false crossing, otherwise
+          ## indicate a true crossing
+          encounter_i$cross_true[2] <- ifelse(nrow(enc_poly1) == 0 | nrow(enc_poly2) == 0, 0, 1)
+          
+          ## If a true crossing occured, record the barrier that was crossed and location
+          if(encounter_i$cross_true[2] == 1){
+            encounter_i$cross_bar[2] <- paste(int_check$Name, collapse = '_')
+            encounter_i$cross_x[2] <- dplyr::first(sf::st_coordinates(int_check)[,1])
+            encounter_i$cross_y[2] <- dplyr::first(sf::st_coordinates(int_check)[,2])
+          }
+        }
+      }
+      
+      ## For the simplicity of the code, make a cross_true object that
+      ## summarizes encounter_i$cross_true
+      cross_true <- sum(encounter_i$cross_true, na.rm = TRUE)
+      
+      ## Identify the closest barrier to most points, for use below
+      bar_closest <- names(which.max(table(encounter_i$bar_min)))
+      
+      ## Identify the season of the encounter for pulling seasonal data below
+      ## and to facilitate subsequent analysis by season. If the encounter spans
+      ## seasons, isolate the modal season so that we compare avg movement
+      ## during the most represented season to that during the encounter.
+      season_i <- names(which.max(table(encounter_i$season)))
+      
+      ## Identify all seasonal points outside of buffers for calculation of
+      ## avg movement statistics
+      animal_season_exclude <-
+        animal_i %>% 
+        ## Subset down to the most common season in the encounter
+        filter(season == season_i) %>% 
+        ## Remove all points inside buffers
+        filter(!(ptsID %in% encounter$ptsID[encounter$Animal.ID == animal_i$Animal.ID[1]])) %>% 
+        ## Add indicator of point difference. Subtract one from each so that
+        ## subsequent ptsIDs get a value of zero, which will be useful for
+        ## calculating the burstIDs below.
+        dplyr::mutate(ptdiff = ptsID - dplyr::lag(ptsID) - 1)
+      ## Set the first ptdiff value to zero
+      animal_season_exclude$ptdiff[1] <- 0
+      ## Reset any point differences within tolerance to zero to not split up
+      ## continuous segments by missing data if it is within the specified
+      ## tolerance level
+      animal_season_exclude$ptdiff[animal_season_exclude$ptdiff <= tolerance] <- 0
+      ## Identify continuous sections in the remaining movement data
+      animal_season_exclude$continuousID <- cumsum(animal_season_exclude$ptdiff)
+      
+      ## For each continuous section, calculate straightness of all movements
+      ## lasting the duration of the encounter (moving window of the size of the
+      ## encounter) or 1000 hrs, whichever is shorter.
+      duration_comp <- min(as.numeric(duration), 1000)
+      straightnesses_seasonal <- NULL
+      for(ii in unique(animal_season_exclude$continuousID)) {
+        animal_ii <- animal_season_exclude[animal_season_exclude$continuousID == ii, ]
+        duration_ii <- difftime(animal_ii$date[nrow(animal_ii)], animal_ii$date[1], units = units)
+        ## Calculate straightness only if at least as long as encounter event
+        if(duration_ii >= duration_comp) {
+          animal_ii$indur <- !(animal_ii$date > (animal_ii$date[nrow(animal_ii)] - as.difftime(duration_comp, units = units)))
+          for(iii in 1:nrow(animal_ii)){
+            if(animal_ii$indur[iii]){
+              straightnesses_seasonal <- 
+                c(straightnesses_seasonal, 
+                  animal_ii %>% 
+                    dplyr::slice(iii:nrow(animal_ii)) %>% 
+                    dplyr::mutate(difftime = difftime(date, date[1], units = units)) %>% 
+                    dplyr::filter(difftime <= duration_comp) %>%
+                    strtns(.))
+            }
+          }
+        }
+      }
+      
+      ## Determine the confidence interval for "average movement" as mean +/-
+      ## sd*sd_multiplier
+      str_mean <- mean(straightnesses_seasonal, na.rm = TRUE)
+      str_sd <- stats::sd(straightnesses_seasonal, na.rm = TRUE)
+      upper <- str_mean + sd_multiplier * str_sd
+      lower <- str_mean - sd_multiplier * str_sd
+      
+      
+      #### Local angle analysis of trace behavior
+      
+      ## Identify the nearest barrier point to each movement point
+      bar_dist_all <- sf::st_distance(x = encounter_i, y = barrier_pts_all)
+      encounter_i$bar_pt_min <- barrier_pts_all$barID[apply(bar_dist_all, 1, which.min)]
+      
+      ## Run through each movement step and evaluate whether the movement angle
+      ## is within the CI of the nearest barrier segment
+      encounter_i$bar_lcl <- NA
+      for(j in 1:(nrow(encounter_i)-1)){
+        ## Check if the nearest barrier points are the same point, if so, leave NA
+        if(encounter_i$bar_pt_min[j] != encounter_i$bar_pt_min[j+1]){
+          ## Check if the nearest barrier points are from the same barrier. If
+          ## not then leave the NA.
+          if(barrier_pts_all$Name[barrier_pts_all$barID == encounter_i$bar_pt_min[j]] ==
+             barrier_pts_all$Name[barrier_pts_all$barID == encounter_i$bar_pt_min[j+1]]){
+            ## Otherwise, pull all the barrier points between the nearest points
+            ## and check for angles within the CI
+            
+            ## Calculate angles of the barrier segment and determine the mean
+            ## and sd
+            lcl_angles <-
+              ## Pull all the barrier points between the nearest points
+              barrier_pts_all %>% 
+              filter(barID >= min(encounter_i$bar_pt_min[j], encounter_i$bar_pt_min[j+1]) &
+                       barID <= max(encounter_i$bar_pt_min[j], encounter_i$bar_pt_min[j+1])) %>% 
+              ## Calculate angles of the barrier segment and determine its mean
+              ## and sd
+              calc_angle()
+            lcl_mean <- 
+              lcl_angles %>% 
+              circular::circular(zero = 0) %>% 
+              circular::mean.circular(na.rm = TRUE) %>% 
+              circular::conversion.circular(units = 'degrees') %% 360  ## Convert this to degrees in a 360 deg range
+            lcl_sd <- 
+              lcl_angles %>% 
+              circular::circular(zero = 0) %>% 
+              circular::sd.circular(na.rm = TRUE) %>% 
+              circular::deg() %% 360
+            ## Calculate the upper and lower bounds for comparison. This is
+            ## needed in both directions so that movement paths heading in
+            ## either direction along a barrier will count as being within the
+            ## barrier buffer. Keep these in the 360 degree range.
+            lcl_upper <- (lcl_mean + sd_multiplier * lcl_sd) %% 360
+            lcl_lower <- (lcl_mean - sd_multiplier * lcl_sd) %% 360
+            lcl_upper2 <- (lcl_mean + sd_multiplier * lcl_sd + 180) %% 360
+            lcl_lower2 <- (lcl_mean - sd_multiplier * lcl_sd + 180) %% 360
+            ## Check whether the step-specific encounter angle lies within the
+            ## calculated limits and indicate accordingly
+            encounter_i$bar_lcl[j] <- 
+              ifelse(angle_in_range(encounter_i$angle[j], lcl_lower, lcl_upper) |
+                       angle_in_range(encounter_i$angle[j], lcl_lower2, lcl_upper2),
+                     1, 0)
+          }
+        }
+      }
+      
+      ## Calculate the proportion of parallel steps (1s), taking NAs into account
+      lcl_prop <- sum(encounter_i$bar_lcl, na.rm = TRUE)/nrow(encounter_i)
+      
+      
+      
+      #### Classify the event
+      
+      ## Earlier testing showed that I need to give priority to the trace
+      ## behavior, otherwise it tends to get classified as avg mvmt when a
+      ## response to the barrier is clear.
+      
+      ## Check whether all bar_lcl are NA. This represents a situation in which
+      ## all locations point to the same segment of the barrier and will get
+      ## classified as avg movement.
+      lcl_NA_check <-
+        encounter_i %>% 
+        summarize(burstID = unique(burstID),
+                  n_tot = n(),
+                  lcl_NA = sum(is.na(bar_lcl))) %>% 
+        st_drop_geometry()
+      
+      ## Classify the encounter, assigning avg if all bar_lcl are NA
+      if(lcl_NA_check$lcl_NA == lcl_NA_check$n_tot){
+        classification <- 'Avg_lclNA'
+        
+        ## If not, check whether the trace and duration thresholds were met and
+        ## assign behavior accordingly. Trace behavior involves some persistence,
+        ## so to qualify as trace behavior the duration of the encounter must be
+        ## at least 3 days (72 hrs), based on preliminary testing.
+      } else if(lcl_prop >= 0.2 & duration >= 72){
+        classification <- 'Trace'
+        
+        ## Classify average movement
+      } else if(straightness_i >= lower & straightness_i <= upper){
+        classification <- "Average_Movement"
+        
+        ## Classify straight encounters (trace, quick cross) 
+      } else if(straightness_i > upper){
+        
+        ## Check whether movement is more parallel or perpendicular to the
+        ## barrier by calculating the mean and sd of angles of the barrier
+        ## closest to the movement path, and comparing against the mean angle of
+        ## the movement path. To ensure barrier metrics reflect areas nearest
+        ## the animal, only calculate the mean and sd for the area within d of
+        ## the closest point to the movement path. In some cases this will
+        ## encompass the entire barrier, in others it will not.
+        
+        ## Create a point version of the nearest barrier line that can be used
+        ## below
+        barrier_pts <-
+          barrier_pts_all %>% 
+          ## Isolate the feature nearest the movement path
+          dplyr::filter(Name == bar_closest)
+        
+        ## Create a buffer of size d around the barrier point nearest the
+        ## movement path that can be used to clip down the barrier, using the
+        ## correct d value for the nearest barrier
+        d_tmp <- ifelse(length(d) > 1, d[which(barrier$Name == bar_closest)], d)
+        barrier_i_buf <-
+          barrier_pts %>% 
+          ## Calculate distance to the nearest movement point
+          dplyr::mutate(
+            dist_mvmt = sf::st_distance(
+              x = ., 
+              y = encounter_i %>%
+                dplyr::filter(bar_min == bar_closest) %>% 
+                dplyr::slice(which.min(.$bar_dist_km)))) %>% 
+          ## Isolate the barrier point nearest to the movement path
+          dplyr::slice(which.min(dist_mvmt)) %>% 
+          ## Buffer this point by d
+          sf::st_buffer(dist = d_tmp, nQuadSegs = 5) %>%   ## Note that nQuadSegs is set to 5 as this was the default value for rgeos::gBuffer in previous versions of BaBA and matches what was done above for the barrier
+          sf::st_union()
+        
+        ## Extract barrier points that fall inside the buffer. Explicitly suppress constant geometry assumption warning by confirming attribute is constant throughout the geometry. See https://github.com/r-spatial/sf/issues/406 for details.
+        sf::st_agr(barrier_pts) <- 'constant'   
+        barrier_i <- 
+          sf::st_intersection(barrier_pts, barrier_i_buf) %>% 
+          ## Add in the xy coords as columns, as expected by calc_angle()
+          dplyr::mutate(x = sf::st_coordinates(.)[,1],
+                        y = sf::st_coordinates(.)[,2])
+        
+        ## Calculate angles of each barrier segment and determine their mean and sd
+        barrier_i_angles <- calc_angle(barrier_i)
+        barrier_i_mean <- 
+          barrier_i_angles %>% 
+          circular::circular(zero = 0) %>% 
+          circular::mean.circular(na.rm = TRUE) %>% 
+          circular::conversion.circular(units = 'degrees') %% 360  ## Convert this to degrees in a 360 deg range
+        barrier_i_sd <- 
+          barrier_i_angles %>% 
+          circular::circular(zero = 0) %>% 
+          circular::sd.circular(na.rm = TRUE) %>% 
+          circular::deg() %% 360
+        
+        ## Calculate the upper and lower bounds for comparison. This is needed
+        ## in both directions so that movement paths heading in either direction
+        ## along a barrier will count as being within the barrier buffer. Keep
+        ## these in the 360 degree range.
+        barrier_upper <- (barrier_i_mean + sd_multiplier * barrier_i_sd) %% 360
+        barrier_lower <- (barrier_i_mean - sd_multiplier * barrier_i_sd) %% 360
+        barrier_upper2 <- (barrier_i_mean + sd_multiplier * barrier_i_sd + 180) %% 360
+        barrier_lower2 <- (barrier_i_mean - sd_multiplier * barrier_i_sd + 180) %% 360
+        
+        ## Calculate the mean encounter angle
+        encounter_i_mean <-
+          encounter_i$angle %>% 
+          circular::circular(zero = 0, units = 'degrees') %>% 
+          circular::mean.circular(na.rm = TRUE) %% 360
+        
+        ## Check whether the mean encounter angle lies within the calculated
+        ## limits and assign behavior accordingly
+        if(angle_in_range(encounter_i_mean, barrier_lower, barrier_upper) |
+           angle_in_range(encounter_i_mean, barrier_lower2, barrier_upper2)){
+          classification <- 'Trace'
+        } else {
+          classification <- ifelse(cross_true > 0, 'Quick_Cross', 'Unknown')
+        }
+        
+        ## Classify non-straight encounters (bounce, back and forth)
+      } else{
+        
+        ## Did the animal change direction of movement after approaching the
+        ## barrier?
+        
+        ## Split the encounter locations into two groups before and after the
+        ## point closest to the barrier, including the closest point in each.
+        close_pt <-
+          encounter_i %>% 
+          dplyr::filter(bar_min == bar_closest) %>% 
+          slice(which.min(.$bar_dist_km)) %>% 
+          pull(ptsID)
+        encounter_i1 <-
+          encounter_i %>% 
+          dplyr::filter(ptsID <= close_pt)
+        encounter_i2 <-
+          encounter_i %>% 
+          dplyr::filter(ptsID >= close_pt)
+        
+        ## Calculate the mean of the angles for each group and
+        ## sd of the first group
+        encounter_i1_mean <- 
+          encounter_i1$angle[-nrow(encounter_i1)] %>%  ## The last angle is to the next group, so remove it from here
+          circular::mean.circular(na.rm = TRUE) %% 360
+        encounter_i1_sd <- 
+          encounter_i1$angle[-nrow(encounter_i1)] %>% 
+          circular::sd.circular(na.rm = TRUE) %>% 
+          circular::deg() %% 360
+        encounter_i2_mean <- 
+          encounter_i2$angle %>% 
+          circular::mean.circular(na.rm = TRUE) %% 360
+        
+        ## Calculate upper and lower limits
+        upper_i1 <- (encounter_i1_mean + sd_multiplier * encounter_i1_sd) %% 360
+        lower_i1 <- (encounter_i1_mean - sd_multiplier * encounter_i1_sd) %% 360
+        
+        ## Calculate the mean resultant length of each group
+        encounter_i1_mrl <-
+          encounter_i1$angle[-nrow(encounter_i1)] %>% 
+          circular::rho.circular(na.rm = TRUE)
+        encounter_i2_mrl <-
+          encounter_i2$angle[-nrow(encounter_i2)] %>% 
+          circular::rho.circular(na.rm = TRUE)
+        
+        ## Calculate average mean resultant length
+        mrl_avg <- mean(c(encounter_i1_mrl, encounter_i2_mrl))
+        
+        ## Classify the result
+        if(is.na(encounter_i1_mean) | is.na(encounter_i1_sd) | is.na(encounter_i2_mean)){
+          ## If there is insufficient sample size to be able to run the
+          ## comparison classify as unknown
+          classification <- 'Unknown_insufficient_n'
+          
+          ## If the sd is 0 make this avg movment because there is only a single
+          ## step
+        } else if(encounter_i1_sd == 0){
+          classification <- 'Average_sd0'
+          
+          ## Is the mean of the second group's angles outside the limits of the
+          ## first group's angles? If so, is the avg mean resultant length
+          ## greater than 0.6?
+        } else if(!angle_in_range(encounter_i2_mean, lower_i1, upper_i1)){
+          if(mrl_avg >= 0.6){
+            ## Classify as bounce, unless it crossed a road, then make unknown
+            classification <- ifelse(cross_true > 0, 'Unknown_cross_bounce', 'Bounce')
+            
+            ## If mrl_avg < 0.6 make back and forth
+          } else{
+            classification <- 'Back_n_forth'
+          }
+          
+          ## If the second group's angles lie within the range of the first,
+          ## classify as back and forth
+        } else{
+          classification <- 'Back_n_forth'
+        }
+      }
+      
+      
+      ### Consolidate outputs
+      
+      ## Plot the encounters to check later, if desired
+      if (export_images) {
+        grDevices::png(paste0(img_path, "/", img_prefix, "_", i, "_", classification, "_", img_suffix, ".png"), width = 12, height = 12, units = "in", res = 300)
+        plot(sf::st_geometry(encounter_i), main = paste0(paste(encounter_i$burstID[1], classification, sep = ' - '), '\n', paste(paste(sort(unique(encounter_i$bar_min)), collapse = '-'), season_i, sep = ' - ')),
+             sub = paste0("cross = ", cross_true, ", dur =", duration, ", stri =", round(straightness_i, 2), ", str_mn = ",  round(str_mean, 2), ", str_sd = ",  round(str_sd, 2)))
+        if(!is.null(img_background)) lapply(img_background, function(x) plot(sf::st_geometry(x), border = 'lightgrey', add = TRUE))
+        plot(animal_i %>% 
+               dplyr::filter(lubridate::year(date) == lubridate::year(encounter_i$date[1])) %>% 
+               dplyr::summarize(do_union = FALSE) %>% 
+               sf::st_cast(to = 'LINESTRING') %>% 
+               sf::st_geometry(),
+             add = TRUE)
+        plot(sf::st_geometry(barrier_buffer), border = scales::alpha("red", 0.5), lty = "dashed", add = TRUE)
+        plot(sf::st_geometry(barrier), col = "red", lwd = 2, add = TRUE)
+        plot(sf::st_geometry(encounter_i), pch = 20, col = "cyan3", type = "o", lwd = 2, add = TRUE)
+        plot(sf::st_geometry(encounter_i %>% slice(1)), pch = 16, col = "blue", add = TRUE)
+        grDevices::dev.off()
+      }
+      
+      ## Prepare data for output
+      if(classification %in% c('Trace', 'Quick_Cross', 'Unknown')){
+        ang_i <- ifelse(exists('encounter_i_mean'), encounter_i_mean, NA)
+        ang_mean <- ifelse(exists('barrier_i_mean'), barrier_i_mean, NA)
+        ang_sd <- ifelse(exists('barrier_i_sd'), barrier_i_sd, NA)
+        mrl_1 <- NA
+        mrl_2 <- NA
+        mrl_mean <- NA
+      } else if(classification %in% c('Bounce', 'Back_n_forth', 'Unknown_cross_bounce', 'Unknown_insufficient_n', 'Average_sd0')){
+        ang_i <- encounter_i2_mean
+        ang_mean <- encounter_i1_mean
+        ang_sd <- encounter_i1_sd
+        mrl_1 <- encounter_i1_mrl
+        mrl_2 <- encounter_i2_mrl
+        mrl_mean <- mrl_avg
+      } else{
+        ang_i <- NA
+        ang_mean <- NA
+        ang_sd <- NA
+        mrl_1 <- NA
+        mrl_2 <- NA
+        mrl_mean <- NA
+      }
+      ## Summarize barrier crossing information into a single value
+      cross_bar_tmp <- 
+        encounter_i$cross_bar %>%
+        na.omit() %>%
+        as.character()
+      cross_bar_tmp <- ifelse(length(cross_bar_tmp) == 0, NA, cross_bar_tmp)
+      cross_x_tmp <- 
+        encounter_i$cross_x %>%
+        na.omit() %>%
+        as.character()
+      cross_x_tmp <- ifelse(length(cross_x_tmp) == 0, NA, cross_x_tmp)
+      cross_y_tmp <- 
+        encounter_i$cross_y %>%
+        na.omit() %>%
+        as.character()
+      cross_y_tmp <- ifelse(length(cross_y_tmp) == 0, NA, cross_y_tmp)
+      
+      ## Combine output
+      event_tmp <- 
+        tibble(AnimalID = encounter_i$Animal.ID[1],
+               encounter = gsub('(\\d+\\w?_\\d+)(_?\\d?)', '\\1', i),
+               burstID = i,
+               season = season_i,
+               barrier = paste(sort(unique(encounter_i$bar_min)), collapse = '-'),
+               barrier_n = paste(names(table(encounter_i$bar_min)), table(encounter_i$bar_min), sep = '-', collapse = '-'),
+               barrier_min_dist = min(encounter_i$bar_dist_km),
+               closest_bar = bar_closest,
+               closest_dist = encounter_i %>% 
+                 filter(bar_min == bar_closest) %>% 
+                 pull(bar_dist_km) %>% 
+                 min(),
+               start_time = encounter_i$date[1],
+               end_time = encounter_i$date[nrow(encounter_i)],
+               duration,
+               cross_any = sum(encounter_i$cross_ind, na.rm = TRUE),
+               cross_true = cross_true,
+               cross_bar = cross_bar_tmp,
+               cross_x = cross_x_tmp,
+               cross_y = cross_y_tmp,
+               class = classification,
+               str_i = straightness_i,
+               str_mean,
+               str_sd,
+               ang_i,
+               ang_mean,
+               ang_sd,
+               mrl_1,
+               mrl_2,
+               mrl_mean,
+               lcl_prop,
+               easting = sf::st_coordinates(encounter_i)[1, 1],
+               northing = sf::st_coordinates(encounter_i)[1, 2])
+      event_df <- rbind(event_df, event_tmp)
+      
+      ## Keep the encounter_i data
+      encounter_i_out[[i]] <- encounter_i
+    }
+    
+    ## Close progress bar
+    close(pb)
+    
+    
+    
+    #### Finalize data
+    
+    print("creating dataframe...")
+    
+    ## Clean the encounter data
+    encounter_final <- 
+      encounter %>% 
+      dplyr::filter(!duplicated(burstID)) %>% 
+      dplyr::left_join(event_df %>% 
+                         dplyr::select(burstID, class),
+                       by = 'burstID') %>% 
+      dplyr::select(Animal.ID, burstID, date, class)
+    
+    ## Return output as a named list
+    return(list(encounters = encounter_final,
+                encounter_is = encounter_i_out,
+                classification = event_df))
+  }
