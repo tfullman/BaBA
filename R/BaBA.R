@@ -554,9 +554,12 @@ BaBA_caribou <-
     if(sf::st_crs(animal) != sf::st_crs(crs)) stop("Coordinate reference system of animal must match crs")
     if(sf::st_crs(barrier) != sf::st_crs(crs)) stop("Coordinate reference system of barrier must match crs")
     
-    ## Round fixes, if desired. NOTE: This is only intended to account for minor variation in fix acquisition time, not to clean irregular data. Please clean data to remove bursts of different fix intervals prior to conducting this analysis.
+    ## Round fixes, if desired. NOTE: This is only intended to account for minor
+    ## variation in fix acquisition time, not to clean irregular data. Please
+    ## clean data to remove bursts of different fix intervals prior to
+    ## conducting this analysis.
     if(round_fixes){
-      animal$date <- round_date(animal$date, unit = units)
+      animal$date <- lubridate::round_date(animal$date, unit = units)
       interval_per_individual <- tapply(animal$date, animal$Animal.ID, function(x) names(which.max(table(round(as.numeric(diff(x), units = units),0)))))
     } else {
       interval_per_individual <- tapply(animal$date, animal$Animal.ID, function(x) names(which.max(table(as.numeric(diff(x), units = units)))))
@@ -564,12 +567,12 @@ BaBA_caribou <-
     if(is.null(interval)) { ## figure out interval (as the most frequent difference in timestamp) if not provided but give an error if not the same for all individuals
       if(all(interval_per_individual == interval_per_individual[1])) interval <- as.numeric(interval_per_individual[1]) else stop("Not all individuals have been sampled at the same frequency. Run individuals with different intervals seperately, or double-check whether your date column is cleaned.")
     } else {
-      if (any(as.numeric(interval_per_individual) > interval, na.rm = T)) stop("BaBA interval needs to be no smaller than the actual data interval. Also double-check whether your date column is cleaned.") 
+      if (any(as.numeric(interval_per_individual) > interval, na.rm = TRUE)) stop("BaBA interval needs to be no smaller than the actual data interval. Also double-check whether your date column is cleaned.") 
     }
     
     
-    #### Classification step 1: generate encounter event data.frame
-    
+    # Classification step 1: generate encounter event data.frame --------------
+
     ## Create point ID by individual and add season indicators
     animal <-
       animal %>% 
@@ -577,32 +580,34 @@ BaBA_caribou <-
       dplyr::group_by(Animal.ID) %>% 
       dplyr::mutate(ptsID = 1:dplyr::n()) %>% 
       dplyr::ungroup() %>% 
-      ## Add season indicator here so that I can easily separate out each point by
-      ## season for seasonal buffer exclusion below. I will use the WAH season breaks
-      ## from the Joly and Cameron 2023 Vital Sign caribou report:
+      ## Add season indicator here to allow separation of points by season for
+      ## seasonal buffer exclusion below. Season breaks derived from Joly and
+      ## Cameron (2023):
       ## Spring migration: Apr 1 - May 27
       ## Calving: May 28 - Jun 14
       ## Insect relief: Jun 15 - Jul 14
       ## Late summer: Jul 15 - Aug 31
       ## Fall migration: Sep 1 - Nov 30
       ## Winter: Dec 1 - Mar 31
-      mutate(season = case_when(date >= paste0(year(date), '-04-01') & date < paste0(year(date), '-05-28') ~ 'spring_mig',
-                                date >= paste0(year(date), '-05-28') & date < paste0(year(date), '-06-15') ~ 'calving',
-                                date >= paste0(year(date), '-06-15') & date < paste0(year(date), '-07-15') ~ 'insect',
-                                date >= paste0(year(date), '-07-15') & date < paste0(year(date), '-09-01') ~ 'late_summer',
-                                date >= paste0(year(date), '-09-01') & date < paste0(year(date), '-12-01') ~ 'fall_mig',
+      mutate(season = dplyr::case_when(date >= paste0(lubridate::year(date), '-04-01') & date < paste0(lubridate::year(date), '-05-28') ~ 'spring_mig',
+                                date >= paste0(lubridate::year(date), '-05-28') & date < paste0(lubridate::year(date), '-06-15') ~ 'calving',
+                                date >= paste0(lubridate::year(date), '-06-15') & date < paste0(lubridate::year(date), '-07-15') ~ 'insect',
+                                date >= paste0(lubridate::year(date), '-07-15') & date < paste0(lubridate::year(date), '-09-01') ~ 'late_summer',
+                                date >= paste0(lubridate::year(date), '-09-01') & date < paste0(lubridate::year(date), '-12-01') ~ 'fall_mig',
                                 TRUE ~ 'winter'))
     
-    ## Calculate the distance to nearest barrier for each point in the
-    ## animal dataset, as well as the identity of that barrier. This
-    ## assumes that the barrier file has a "Name" column that uniquely
-    ## identifies each barrier segment. Add the nearest barrier and minimum
-    ## distance to barrier to the animal object.
+    ## Calculate the distance to nearest barrier for each point in the animal
+    ## dataset, as well as the identity of that barrier. This assumes that the
+    ## barrier file has a "Name" column that uniquely identifies each barrier
+    ## segment. Add the nearest barrier and minimum distance to barrier to the
+    ## animal object.
     bar_dist <- sf::st_distance(x = animal, y = barrier)
     animal$bar_min <- barrier$Name[apply(bar_dist, 1, which.min)]
     animal$bar_dist_km <- apply(bar_dist, 1, function(x) x[which.min(x)])/1000
     
-    ## Explicitly suppress constant geometry assumption warning by confirming attribute is constant throughout the geometry. See https://github.com/r-spatial/sf/issues/406 for details.
+    ## Explicitly suppress constant geometry assumption warning by confirming
+    ## attribute is constant throughout the geometry. See
+    ## https://github.com/r-spatial/sf/issues/406 for details.
     sf::st_agr(animal) <- 'constant'   
     sf::st_agr(barrier) <- 'constant'
     
@@ -653,7 +658,7 @@ BaBA_caribou <-
                d)
       d_target <- ifelse(bar_tmp$Name[1] == 'Dalton', 10*d, 2*d)
       
-      ## First extend the barrier on either end in the predominant movement
+      ## First extend the barrier on either end in the predominant barrier
       ## direction
       pt0a <-
         line_extend(pt = bar_tmp[1, c('x','y')] %>% 
@@ -674,7 +679,7 @@ BaBA_caribou <-
       ## outer polygon edges
       pt1a <-  
         line_extend(pt = pt0a %>%
-                      st_coordinates(),
+                      sf::st_coordinates(),
                     angle = bar_ang_mean + 90 %% 360,
                     len = d_target) %>% 
         as.data.frame() %>% 
@@ -682,7 +687,7 @@ BaBA_caribou <-
         dplyr::slice(2)
       pt2a <-  
         line_extend(pt = pt0a %>%
-                      st_coordinates(),
+                      sf::st_coordinates(),
                     angle = bar_ang_mean - 90 %% 360,
                     len = d_target) %>% 
         as.data.frame() %>% 
@@ -690,7 +695,7 @@ BaBA_caribou <-
         dplyr::slice(2)
       pt1b <-  
         line_extend(pt = pt0b %>%
-                      st_coordinates(),
+                      sf::st_coordinates(),
                     angle = bar_ang_mean + 90 %% 360,
                     len = d_target) %>% 
         as.data.frame() %>% 
@@ -698,7 +703,7 @@ BaBA_caribou <-
         dplyr::slice(2)
       pt2b <-  
         line_extend(pt = pt0b %>%
-                      st_coordinates(),
+                      sf::st_coordinates(),
                     angle = bar_ang_mean - 90 %% 360,
                     len = d_target) %>% 
         as.data.frame() %>% 
@@ -790,8 +795,8 @@ BaBA_caribou <-
           
           ## If there are no points outside of the buffer that means there is
           ## missing data. Since the missing data are still within the
-          ## tolerance, we consider ptdiff=0 so the points before and after will
-          ## be in the same event.
+          ## tolerance, we consider ptdiff = 0 so the points before and after
+          ## will be in the same event.
           if (nrow(fetched_pt) == 0) {  
             encounter_i$ptdiff[pt] <- 0
             next() } 
@@ -847,8 +852,8 @@ BaBA_caribou <-
     
     ## Add indicators to encounter_complete of whether each location represents
     ## the endpoint of a segment where a crossing was indicated and where a true
-    ## crossing occurred. By default I will indicate no for all and then update
-    ## those for which a crossing is indicated.
+    ## crossing occurred. By default this will indicate no (0) for all and then
+    ## update those for which a crossing is indicated.
     encounter_complete$cross_ind <- 0
     encounter_complete$cross_true <- 0
     
@@ -866,7 +871,7 @@ BaBA_caribou <-
       dplyr::filter(nbar > 1) %>% 
       dplyr::group_by(burstID) %>% 
       dplyr::mutate(
-        bar_change = ifelse(lag(bar_min) != bar_min, 1, 0),
+        bar_change = ifelse(dplyr::lag(bar_min) != bar_min, 1, 0),
         bar_change = ifelse(is.na(bar_change), 0, bar_change),
         bar_dif = cumsum(bar_change)) %>% 
       dplyr::ungroup()
@@ -883,8 +888,8 @@ BaBA_caribou <-
         encounter_complete %>% 
         dplyr::filter(burstID == k)
       
-      ## Iterate through each pair of encounter points to check for indicated and
-      ## true crossings
+      ## Iterate through each pair of encounter points to check for indicated
+      ## and true crossings
       for(j in 1:(nrow(encounter_i)-1)){
         pts_tmp <- encounter_i[j:(j+1),]
         line_tmp <- pts_tmp %>% 
@@ -894,21 +899,22 @@ BaBA_caribou <-
         ## Check for barrier intersection
         int_check <- sf::st_intersection(line_tmp, barrier)
         
-        ## If there's an intersection, check for points on different sides of the
-        ## barrier to indicate a true crossing
+        ## If there is an intersection, check for points on different sides of
+        ## the barrier to indicate a true crossing
         if(nrow(int_check) > 0){
-          ## Indicate that a crossing was indicated. Using j + 1 sets this to be the
-          ## endpoint of the crossing (i.e., after the purported crossing has
-          ## occurred), which is important when using the crossing information to
-          ## split encounters into sub-bursts below.
+          ## Indicate that a crossing was indicated. Using j + 1 sets this to be
+          ## the endpoint of the crossing (i.e., after the purported crossing
+          ## has occurred), which is important when using the crossing
+          ## information to split encounters into sub-bursts below.
           encounter_i$cross_ind[j+1] <- 1
           
           ## Pull the road side polygons for the intersected barrier
           poly.tmp <-
             bar_list %>% 
-            pluck(int_check$Name)
+            purrr::pluck(int_check$Name)
           
-          ## Crop the points with each polygon, setting st_arg() to avoid a warning
+          ## Crop the points with each polygon, setting st_arg() to avoid a
+          ## warning
           sf::st_agr(pts_tmp) <- 'constant'
           enc_poly1 <- sf::st_intersection(pts_tmp, poly.tmp[1])
           enc_poly2 <- sf::st_intersection(pts_tmp, poly.tmp[2])
@@ -941,7 +947,8 @@ BaBA_caribou <-
     ## encounter_complete and use them to make a joint burstID column
     encounter_complete <-
       encounter_complete %>% 
-      ## Make a unique column that is Animal.ID_ptsID and use that to merge the data
+      ## Make a unique column that is Animal.ID_ptsID and use that to merge the
+      ## data
       dplyr::mutate(join_col = paste(Animal.ID, ptsID, sep = '_')) %>% 
       dplyr::left_join(
         bursts_updated_barrier %>% 
@@ -988,8 +995,8 @@ BaBA_caribou <-
     
     
     
-    #### Classification step 2: classify events
-    
+    # Classification step 2: classify events ----------------------------------
+
     print("classifying behaviors...") 
     ## Open progress bar
     pb <- utils::txtProgressBar(style = 3)
@@ -1065,7 +1072,7 @@ BaBA_caribou <-
           ## Pull the road side polygons for the intersected barrier
           poly.tmp <-
             bar_list %>% 
-            pluck(int_check$Name)
+            purrr::pluck(int_check$Name)
           
           ## Crop the points with each polygon
           enc_poly1 <- sf::st_intersection(pts_tmp, poly.tmp[1])
@@ -1102,9 +1109,9 @@ BaBA_caribou <-
       animal_season_exclude <-
         animal_i %>% 
         ## Subset down to the most common season in the encounter
-        filter(season == season_i) %>% 
+        dplyr::filter(season == season_i) %>% 
         ## Remove all points inside buffers
-        filter(!(ptsID %in% encounter$ptsID[encounter$Animal.ID == animal_i$Animal.ID[1]])) %>% 
+        dplyr::filter(!(ptsID %in% encounter$ptsID[encounter$Animal.ID == animal_i$Animal.ID[1]])) %>% 
         ## Add indicator of point difference. Subtract one from each so that
         ## subsequent ptsIDs get a value of zero, which will be useful for
         ## calculating the burstIDs below.
@@ -1151,8 +1158,9 @@ BaBA_caribou <-
       lower <- str_mean - sd_multiplier * str_sd
       
       
+
       #### Local angle analysis of trace behavior
-      
+
       ## Identify the nearest barrier point to each movement point
       bar_dist_all <- sf::st_distance(x = encounter_i, y = barrier_pts_all)
       encounter_i$bar_pt_min <- barrier_pts_all$barID[apply(bar_dist_all, 1, which.min)]
@@ -1175,7 +1183,7 @@ BaBA_caribou <-
             lcl_angles <-
               ## Pull all the barrier points between the nearest points
               barrier_pts_all %>% 
-              filter(barID >= min(encounter_i$bar_pt_min[j], encounter_i$bar_pt_min[j+1]) &
+              dplyr::filter(barID >= min(encounter_i$bar_pt_min[j], encounter_i$bar_pt_min[j+1]) &
                        barID <= max(encounter_i$bar_pt_min[j], encounter_i$bar_pt_min[j+1])) %>% 
               ## Calculate angles of the barrier segment and determine its mean
               ## and sd
@@ -1213,11 +1221,11 @@ BaBA_caribou <-
       
       
       
-      #### Classify the event
-      
-      ## Earlier testing showed that I need to give priority to the trace
-      ## behavior, otherwise it tends to get classified as avg mvmt when a
-      ## response to the barrier is clear.
+      ### Classify the event ------------------------------------------------------
+
+      ## Earlier testing showed a need to prioritize trace behavior, otherwise
+      ## it tends to get classified as avg mvmt when a response to the barrier
+      ## is clear.
       
       ## Check whether all bar_lcl are NA. This represents a situation in which
       ## all locations point to the same segment of the barrier and will get
@@ -1225,9 +1233,9 @@ BaBA_caribou <-
       lcl_NA_check <-
         encounter_i %>% 
         summarize(burstID = unique(burstID),
-                  n_tot = n(),
+                  n_tot = dplyr::n(),
                   lcl_NA = sum(is.na(bar_lcl))) %>% 
-        st_drop_geometry()
+        sf::st_drop_geometry()
       
       ## Classify the encounter, assigning avg if all bar_lcl are NA
       if(lcl_NA_check$lcl_NA == lcl_NA_check$n_tot){
@@ -1337,8 +1345,8 @@ BaBA_caribou <-
         close_pt <-
           encounter_i %>% 
           dplyr::filter(bar_min == bar_closest) %>% 
-          slice(which.min(.$bar_dist_km)) %>% 
-          pull(ptsID)
+          dplyr::slice(which.min(.$bar_dist_km)) %>% 
+          dplyr::pull(ptsID)
         encounter_i1 <-
           encounter_i %>% 
           dplyr::filter(ptsID <= close_pt)
@@ -1423,7 +1431,7 @@ BaBA_caribou <-
         plot(sf::st_geometry(barrier_buffer), border = scales::alpha("red", 0.5), lty = "dashed", add = TRUE)
         plot(sf::st_geometry(barrier), col = "red", lwd = 2, add = TRUE)
         plot(sf::st_geometry(encounter_i), pch = 20, col = "cyan3", type = "o", lwd = 2, add = TRUE)
-        plot(sf::st_geometry(encounter_i %>% slice(1)), pch = 16, col = "blue", add = TRUE)
+        plot(sf::st_geometry(encounter_i %>% dplyr::slice(1)), pch = 16, col = "blue", add = TRUE)
         grDevices::dev.off()
       }
       
@@ -1453,23 +1461,23 @@ BaBA_caribou <-
       ## Summarize barrier crossing information into a single value
       cross_bar_tmp <- 
         encounter_i$cross_bar %>%
-        na.omit() %>%
+        stats::na.omit() %>%
         as.character()
       cross_bar_tmp <- ifelse(length(cross_bar_tmp) == 0, NA, cross_bar_tmp)
       cross_x_tmp <- 
         encounter_i$cross_x %>%
-        na.omit() %>%
+        stats::na.omit() %>%
         as.character()
       cross_x_tmp <- ifelse(length(cross_x_tmp) == 0, NA, cross_x_tmp)
       cross_y_tmp <- 
         encounter_i$cross_y %>%
-        na.omit() %>%
+        stats::na.omit() %>%
         as.character()
       cross_y_tmp <- ifelse(length(cross_y_tmp) == 0, NA, cross_y_tmp)
       
       ## Combine output
       event_tmp <- 
-        tibble(AnimalID = encounter_i$Animal.ID[1],
+        tibble::tibble(AnimalID = encounter_i$Animal.ID[1],
                encounter = gsub('(\\d+\\w?_\\d+)(_?\\d?)', '\\1', i),
                burstID = i,
                season = season_i,
@@ -1478,8 +1486,8 @@ BaBA_caribou <-
                barrier_min_dist = min(encounter_i$bar_dist_km),
                closest_bar = bar_closest,
                closest_dist = encounter_i %>% 
-                 filter(bar_min == bar_closest) %>% 
-                 pull(bar_dist_km) %>% 
+                 dplyr::filter(bar_min == bar_closest) %>% 
+                 dplyr::pull(bar_dist_km) %>% 
                  min(),
                start_time = encounter_i$date[1],
                end_time = encounter_i$date[nrow(encounter_i)],
