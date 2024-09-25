@@ -1414,8 +1414,9 @@ BaBA_caribou <-
       }
       
       
-      ### Consolidate outputs
-      
+
+      ### Consolidate outputs -----------------------------------------------------
+
       ## Plot the encounters to check later, if desired
       if (export_images) {
         grDevices::png(paste0(img_path, "/", img_prefix, "_", i, "_", classification, "_", img_suffix, ".png"), width = 12, height = 12, units = "in", res = 300)
@@ -1521,8 +1522,8 @@ BaBA_caribou <-
     
     
     
-    #### Finalize data
-    
+    # Finalize data -----------------------------------------------------------
+
     print("creating dataframe...")
     
     ## Clean the encounter data
