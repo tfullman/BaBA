@@ -104,6 +104,28 @@ calc_angle <- function(x){
 }
 
 
+#' Check whether an angle is within a specified range
+#'
+#' Helper function used by \code{\link{BaBA_caribou}} to check whether a given
+#' angle is within the specified range of values. Code adapted from
+#' \href{https://stackoverflow.com/questions/66799475/how-to-elegantly-find-if-an-angle-is-between-a-range}{StackOverflow}.
+#'
+#' @param x Numeric value indicating the angle to be checked, in units of
+#'   degrees on a 360 degree scale. May be of class \code{circular} or
+#'   \code{numeric}.
+#' @param lower Numeric value indicating the lower end of the angular range to
+#'   be evaluated. Units, range, and class as with \code{x}.
+#' @param upper Numeric value indicating the upper end of the angular range to
+#'   be evaluated. Units, range, and class as with \code{x}.
+#'
+#' @return Logical value indicating whether \code{x} is within the interval
+#'   \code{c(lower, upper)}.
+#' 
+angle_in_range <- function(x, lower, upper){
+  (x - lower) %% 360 <= (upper - lower) %% 360
+}
+
+
 ## Helper function used by BaBA_default() to increase movement segment by one
 ## points before and one point after the focused encounter
 movement.segment.b <- function(animal, pt1, pt2) {
