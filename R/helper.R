@@ -126,6 +126,36 @@ angle_in_range <- function(x, lower, upper){
 }
 
 
+#' Project a point along an angle and distance
+#'
+#' Helper function used by \code{\link{BaBA_caribou}} to project a point
+#' elsewhere in space given an initial point, angle for projection, and distance
+#' to move the point. This is adapted from the \code{CreateSegmentAngle}
+#' function in the
+#' \code{\href{https://cran.r-project.org/package=LearnGeom}{LearnGeom}}
+#' package.
+#'
+#' @param pt \code{data.frame} with one row and columns \code{x} and \code{y}
+#'   indicating the location of the point to be projected into space.
+#' @param angle Numerical value indicating the angle, in units of degrees,
+#'   indicating the direction along which \code{pt} should be projected.
+#' @param len Numerical value indicating the distance which {pt} should be
+#'   moved, in the same units as \code{pt}.
+#'
+#' @return \code{data.frame} with two rows and two columns. Columns indicate the
+#'   x and y coordinates of the points. The first row represents the location of
+#'   \code{pt}. The second row indicates the location of the newly projected
+#'   point \code{len} units away from \code{pt} at a bearing of \code{angle}.
+#'
+line_extend <- function (pt, angle, len){
+  P1 = pt
+  angle = pi * angle / 180
+  P2 = pt + c(len * cos(angle), len * sin(angle))
+  Segment = rbind(P1, P2)
+  return(Segment)
+}
+
+
 ## Helper function used by BaBA_default() to increase movement segment by one
 ## points before and one point after the focused encounter
 movement.segment.b <- function(animal, pt1, pt2) {
