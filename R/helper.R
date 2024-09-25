@@ -74,6 +74,36 @@ strtns <- function(mov_seg) {
 }
 
 
+#' Calculate headings of one or more linear steps
+#'
+#' Helper function used by \code{\link{BaBA_caribou}} to calculate absolute
+#' angles between a movement step or barrier segment and the x-axis to provide
+#' an indication of heading. This is adapted from code in the \code{as.ltraj}
+#' function of
+#' \code{\href{https://cran.r-project.org/package=adehabitatLT}{adehabitatLT}}.
+#'
+#' @param x \code{\href{https://cran.r-project.org/package=sf}{sf}}
+#'   \code{POINT} object representing points of movement locations
+#'   during an encounter or segment points along a linear barrier. This should
+#'   have columns labelled \code{x} and \code{y} indicating the xy coordinates
+#'   of feature \code{x}.
+#'
+#' @return Numeric vector with length equal to \code{nrow(x)} indicating the
+#'   absolute angles in radians between each pair of points and the x-axis. The
+#'   final value will always be NA as an angle cannot be calculated for the last
+#'   point in a sequence.
+#' 
+calc_angle <- function(x){
+  x1 <- x[-1, ]
+  x2 <- x[-nrow(x), ]
+  dist <- c(sqrt((x1$x - x2$x)^2 + (x1$y - x2$y)^2), NA)
+  dx <- c(x1$x - x2$x, NA)
+  dy <- c(x1$y - x2$y, NA)
+  abs.angle <- ifelse(dist < 1e-07, NA, atan2(dy, dx))
+  return(abs.angle)
+}
+
+
 ## Helper function used by BaBA_default() to increase movement segment by one
 ## points before and one point after the focused encounter
 movement.segment.b <- function(animal, pt1, pt2) {
