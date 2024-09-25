@@ -530,6 +530,49 @@ BaBA_default <-
   }
 
 
+
+#'Barrier Behavior Analysis (caribou-specific)
+#'
+#'This is a heavily modified adaptation of \link{BaBA_default}, tailored to
+#'barrier analysis for Western Arctic Herd (WAH) caribou in northwestern Alaska.
+#'The analysis workflow of Xu et al. (2021), on which \code{BaBA_default} is
+#'built was reworked to improve accuracy for the WAH. See details below.
+#'
+#'
+#'@param barrier An \code{sf LINESTRING} or \code{MULTILINESTRING} object
+#'  showing barrier locations in the area overlapped with \code{animal} movement
+#'  data. In the same spatial projection as \code{animal}.
+#'@param d Barrier buffer size in meters if \code{barrier} has a projected
+#'  coordinate system CRS, in the units of \code{barrier} otherwise.
+#'@param interval Time interval of the movement data (unit specified in
+#'  \code{units}). If not specified, BaBA will use the most frequent time
+#'  difference between steps as \code{interval}, which might affect result
+#'  accuracy if the data has an irregular time interval or a lot of missing
+#'  data.
+#'
+#'@param animal An \code{sf POINT} object representing animal telemetry
+#'  locations with a column named \code{"Animal.ID"} that identifies each
+#'  individual and a column named \code{"date"} in \code{"POSIXct"} format. The
+#'  coordinate reference system of \code{animal} should match \code{barrier},
+#'  preferably in a projected coordinate system.
+#'@param barrier
+#'@param d
+#'@param interval
+#'@param tolerance
+#'@param units
+#'@param sd_multiplier
+#'@param round_fixes
+#'@param crs
+#'@param export_images
+#'@param img_path
+#'@param img_prefix
+#'@param img_suffix
+#'@param img_background
+#'
+#'@return
+#'@export
+#'
+#' @examples
 BaBA_caribou <-
   function(animal, barrier, d, interval = NULL, tolerance = 0, units = "hours",
            sd_multiplier = 1, round_fixes = FALSE, crs = NULL, 
