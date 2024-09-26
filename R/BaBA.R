@@ -138,7 +138,7 @@
 #'  are larger than \code{max_cross}, the encounter event will be classified as
 #'  \emph{'unknown'}.
 
-#'  eturn \code{BaBA} returns a list with two components:
+#'@return \code{BaBA} returns a list with two components:
 #'
 #'  \code{$classification} is a \code{data.frame}. Each row represents one
 #'  encounter event. \code{AnimalID} is the ID of the individual; \code{burstID}
@@ -161,9 +161,9 @@
 #'@author Wenjing Xu \email{wenjing.xu@berkeley.edu} and Valentine Herrmann
 #'  \email{HerrmannV@si.edu}
 #'
-#'@references Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. Barrier
+#'@references Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier
 #'  Behaviour Analysis (BaBA) reveals extensive effects of fencing on
-#'  wide-ranging ungulates. J Appl Ecol.
+#'  wide-ranging ungulates. Journal of Applied Ecology 58: 690-698.
 #'  https://doi.org/10.1111/1365-2664.13806.
 #'
 #' @examples
@@ -538,38 +538,89 @@ BaBA_default <-
 #'The analysis workflow of Xu et al. (2021), on which \code{BaBA_default} is
 #'built was reworked to improve accuracy for the WAH. See details below.
 #'
-#'
-#'@param barrier An \code{sf LINESTRING} or \code{MULTILINESTRING} object
-#'  showing barrier locations in the area overlapped with \code{animal} movement
-#'  data. In the same spatial projection as \code{animal}.
-#'@param d Barrier buffer size in meters if \code{barrier} has a projected
-#'  coordinate system CRS, in the units of \code{barrier} otherwise.
-#'@param interval Time interval of the movement data (unit specified in
-#'  \code{units}). If not specified, BaBA will use the most frequent time
-#'  difference between steps as \code{interval}, which might affect result
-#'  accuracy if the data has an irregular time interval or a lot of missing
-#'  data.
+#'@param img_suffix \code{character} string to be added at the end of image file
+#'  names written when \code{export_images == TRUE}.
 #'
 #'@param animal An \code{sf POINT} object representing animal telemetry
 #'  locations with a column named \code{"Animal.ID"} that identifies each
 #'  individual and a column named \code{"date"} in \code{"POSIXct"} format. The
 #'  coordinate reference system of \code{animal} should match \code{barrier},
 #'  preferably in a projected coordinate system.
-#'@param barrier
-#'@param d
-#'@param interval
-#'@param tolerance
-#'@param units
-#'@param sd_multiplier
-#'@param round_fixes
-#'@param crs
-#'@param export_images
-#'@param img_path
-#'@param img_prefix
-#'@param img_suffix
-#'@param img_background
+#'@param barrier An \code{sf LINESTRING} or \code{MULTILINESTRING} object
+#'  showing barrier locations to be evaluated against \code{animal} movement
+#'  data. This should have the same spatial projection as \code{animal}.
+#'@param d Barrier buffer size in meters if \code{barrier} has a projected
+#'  coordinate system CRS, in the units of \code{barrier} otherwise.
+#'@param interval Optional. Numeric value specifying the time interval of the
+#'  movement data (in units specified in \code{units}). If not specified, BaBA
+#'  will use the most frequent time difference between steps as \code{interval},
+#'  which might affect result accuracy if the data has an irregular time
+#'  interval or a large amount of missing data.
+#'@param tolerance Numeric value indicating the maximum number of points that
+#'  can occur outside of the barrier buffer but still be counted part of the
+#'  same encounter. Note that this is a different definition of tolerance than
+#'  that used in \link{BaBA_default}, which defined tolerance as the maximum
+#'  duration in which points could be outside of barrier buffer and still count
+#'  as a single encounter. The two definitions are conceptually similar, but
+#'  have different units. Defaults to 0.
+#'@param units Character string indicating the temporal units of
+#'  \code{interval}. Values should be one of "secs", "mins", "hours", "days",
+#'  and "weeks". Defaults to "hours".
+#'@param sd_multiplier Numeric value indicating the number of standard
+#'  deviations used to define the normal range of movement straightness.
+#'  Increasing this value results in widening the confidence interval used to
+#'  identify normal behavior. Defaults to 1.
+#'@param round_fixes \code{Logical}. Indicates whether elements of the
+#'  \code{"date"} column of \code{animal} should be rounded to the nearest
+#'  \code{units}. This is intended to account for minor variations in fix
+#'  acquisition time that may lead to some intervals being slightly longer than
+#'  \code{interval}. Note that this is not a replacement for cleaning the
+#'  \code{animal} data.frame and removing repetitive timesteps as described in
+#'  Details. Defaults to \code{FALSE}.
+#'@param crs Optional character string indicating the coordinate reference
+#'  system used for all spatial data in the analysis. If not specified, this
+#'  will be assumed to match the coordinate reference system of \code{animal},
+#'  with a warning. Note that this is a convenience variable used in defining
+#'  intermediate products in the analysis and is not a replacement for data
+#'  cleaning, preparation, and standardizing projections before the analysis.
+#'@param export_images \code{Logical} indicator of whether to export images of
+#'  burst events as \code{.png} files named with the classification of the
+#'  event, the \code{Animal.ID} of the animal, the \code{burstID} of the event,
+#'  and potential prefix and suffix values specified by the \code{img_prefix}
+#'  and \code{img_suffix} arguments. Defaults to \code{FALSE}.
+#'@param img_path Character string indicating the name of the folder to which
+#'  images should be exported when \code{export_images == TRUE}. The folder will
+#'  be created in the working directory if it does not exist. Defaults to
+#'  "event_imgs".
+#'@param img_prefix Optional character string to be added at the beginning of
+#'  image file names written when \code{export_images == TRUE}.
+#'@param img_suffix Optional character string to be added at the end of image
+#'  file names written when \code{export_images == TRUE}.
+#'@param img_background Optional \code{list} object containing one or more
+#'  \code{sf} spatial objects to be included in the background of plots when
+#'  \code{export_images == TRUE}. For example, this could include spatial
+#'  objects representing coastline, rivers, cities, or other features of
+#'  interest.
 #'
-#'@return
+#'@return A \code{list} consisting of three objects:
+#'  \item{$encounters} {
+#'    An \code{sf POINT} object with one record per burst in the dataset. These indicate the date and spatial location of the first point in each burst, along with burstID and classification information. Retained for historical reasons as a holdover from \link{BaBA_default}. The informatino here is redundant with that in \code{encounter_is}.
+#'  }
+#'  \item{$encounter_is}{
+#'    A named \code{list} object with a length equal to the number of bursts in the dataset. Names correspond to the burstID for each entry. Each entry consists of a \code{sf POINT} object with all locations for each burst in the dataset, along with corresponding information about season, barrier proximity, and crossing. Useful for visualizing specific bursts after an analysis is completed.
+#'  }
+#'  \item{$classification}{
+#'    A \code{tibble} containing the BaBA results for each burst analyzed in the dataset. Number of rows corresponds to the number of bursts. Columns include:
+#'    *AnimalID - Unique character indicator of each collared animal in the dataset. There will likely be multiple records for the same animal in the dataset.
+#'    *encounter - Unique character indicator of each encounter in the dataset, defined as one interaction of an animal with one or more barrier(s). This consists of the time from which an animal enters within a barrier buffer (\code{d}) until it leaves that buffer, with brief steps outside the buffer possible as long as they are within a pre-specified \code{tolerance}. There will likely be multiple records for the same encounter in the same dataset.
+#'    *burstID - Unique character indicator of the specific burst evaluated. An \emph{encounter} may be split into multiple \emph{bursts}, with bursts distinguished if a barrier is crossed or the animal moves from proximity of one barrier to another while remaining within the barrier buffer (\code{d}). This allows identification of multiple behavioral responses to a single barrier, or to multiple nearby barriers.
+#'    *season - Character indicator of the predominant season in which each burst takes place. Based on the dates of the locations in the burst and the season boundaries identified for the WAH by Joly and Cameron (2023).
+#'    *barrier - Character indicator of the barrier(s) with which the animal comes into proximity (i.e., within the barrier buffer distance, \code{d}) during a given burst.
+#'    *barrier_n - Character indicator of the number of locations in closest proximity to each barrier in the burst. For example, if a caribou had three locations closer to the Kivalina road and seven closer to the Red Dog Road in a particular burst, the value for that burst would be "Kivalina-3-RedDog-7".
+#'    *barrier_min_dist - Numeric value indicating the minimum distance, in km, at which a point was observed near a road during the given burst. Note that because observations are periodic, not continuous, the animal may have come closer to the road, or even crossed the road, but this distance is recorded based on the nearest observed point.
+#'    *closest_bar - 
+#'    }
+#'
 #'@export
 #'
 #' @examples
@@ -592,8 +643,8 @@ BaBA_caribou <-
     if (!"Animal.ID" %in% names(animal)) stop("Please rename the individual ID column to 'Animal.ID'")
     if (!(inherits(animal$date, "POSIXct"))) stop("Date needs to be 'POSIXct' format")
     if (sum(is.na(animal$date)) > 0) stop("Please exclude rows where date is NA")
-    if(is.null(crs)) crs <- sf::st_crs(animal)
     if(is.null(crs)) warning("No crs specified. assuming crs for animal applies to all spatial data") 
+    if(is.null(crs)) crs <- sf::st_crs(animal)
     if(sf::st_crs(animal) != sf::st_crs(crs)) stop("Coordinate reference system of animal must match crs")
     if(sf::st_crs(barrier) != sf::st_crs(crs)) stop("Coordinate reference system of barrier must match crs")
     
