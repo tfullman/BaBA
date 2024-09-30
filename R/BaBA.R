@@ -548,7 +548,9 @@ BaBA_default <-
 #'  preferably in a projected coordinate system.
 #'@param barrier An \code{sf LINESTRING} or \code{MULTILINESTRING} object
 #'  showing barrier locations to be evaluated against \code{animal} movement
-#'  data. This should have the same spatial projection as \code{animal}.
+#'  data. This should have the same spatial projection as \code{animal}. It also
+#'  is assumed to have a column labelled "Name" that uniquely identifies each
+#'  barrier segment, ideally with a single term (without spaces).
 #'@param d Barrier buffer size in meters if \code{barrier} has a projected
 #'  coordinate system CRS, in the units of \code{barrier} otherwise.
 #'@param interval Optional. Numeric value specifying the time interval of the
@@ -698,15 +700,15 @@ BaBA_default <-
 #'  Arctic Network Inventory and Monitoring Program: September 2022–August 2023.
 #'  Natural Resource Report NPS/ARCN/NRR—2023/2612. National Park Service, Fort
 #'  Collins, Colorado.
-#'  
-#'  Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier
-#'  Behaviour Analysis (BaBA) reveals extensive effects of fencing on
-#'  wide-ranging ungulates. Journal of Applied Ecology 58: 690-698.
-#'  https://doi.org/10.1111/1365-2664.13806. 
+#'
+#'  Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier Behaviour
+#'  Analysis (BaBA) reveals extensive effects of fencing on wide-ranging
+#'  ungulates. Journal of Applied Ecology 58: 690-698.
+#'  https://doi.org/10.1111/1365-2664.13806.
 #'
 #'@examples
 #'\dontrun{
-#'wah.out <- BaBA_caribou(animal = wah_all, barrier = rd_final, 
+#'wah.out <- BaBA_caribou(animal = wah_all, barrier = rd_final,
 #'                        d = c(20000, 20000, 5000, 20000, 20000),
 #'                        interval = 8, tolerance = 0, units = 'hours',
 #'                        round_fixes = TRUE, crs = 'EPSG:6393',
