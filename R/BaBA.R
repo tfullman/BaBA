@@ -1,11 +1,48 @@
-## Wrapper function - to be developed at the end
-# BaBA <- function(caribou = FALSE, ...){
-#   if(caribou){
-#     BaBA_caribou()
-#   } else{
-#     BaBA_default()
-#   }
-# }
+#' Barrier Behaviour Analysis (BaBA)
+#'
+#' This wrapper function allows running of the Barrier Behaviour Analysis (BaBA)
+#' using either the default approach outlined by Xu et al. (2021) when
+#' \code{caribou == TRUE} or with the modified approach of Fullman et al. (in
+#' prep) tailored to caribou of the Western Arctic Herd (when caribou == TRUE).
+#' See documentation for \code{\link{BaBA_default}} and
+#' \code{\link{BaBA_caribou}} for details on the other parameters in the model.
+#'
+#' @param caribou Logical indicator of whether to run the BaBA approach using
+#'   the default methods of Xu et al. (FALSE) or the caribou-specific methods of
+#'   Fullman et al. (TRUE). Defaults to FALSE.
+#' @param ... Additional parameters as specified in \code{\link{BaBA_default}}
+#'   and \code{\link{BaBA_caribou}}.
+#'
+#' @return A \code{list} with three components. See details in
+#'   \code{\link{BaBA_default}} and \code{\link{BaBA_caribou}}.
+#' @export
+#'
+#' @examples
+#'   \dontrun{
+#'     ## Run BaBA on mule deer data using the default methods, exporting event
+#'     ## images to visually check event classifications.
+#'     data("muleDeer")
+#'     results_deer <- BaBA(animal = muleDeer, barrier = fences, d = 90,
+#'                      export_images = TRUE, img_suffix = "DEER")
+#'                      
+#'     ## Run BaBA on caribou data using the updated methods, exporting burst
+#'     ## images.
+#'     wah.out <- BaBA_caribou(caribou = TRUE, animal = wah_all,
+#'                             barrier = rd_final,
+#'                             d = c(20000, 20000, 5000, 20000, 20000),
+#'                             interval = 8, tolerance = 0, units = 'hours',
+#'                             round_fixes = TRUE, crs = 'EPSG:6393',
+#'                             export_images = TRUE, img_path = 'C:/BaBA_runs'),
+#'                             img_prefix = 'wah_all', img_suffix = Sys.Date(),
+#'                             img_background = list(ak_border))
+#'   }
+BaBA <- function(caribou = FALSE, ...){
+  if(caribou){
+    BaBA_caribou(...)
+  } else{
+    BaBA_default(...)
+  }
+}
 
 
 #'Barrier Behavior Analysis (BaBA)
@@ -729,7 +766,7 @@ BaBA_default <-
 #'
 #'@examples
 #'\dontrun{
-#'wah.out <- BaBA_caribou(animal = wah_all, barrier = rd_final,
+#' wah.out <- BaBA_caribou(animal = wah_all, barrier = rd_final,
 #'                        d = c(20000, 20000, 5000, 20000, 20000),
 #'                        interval = 8, tolerance = 0, units = 'hours',
 #'                        round_fixes = TRUE, crs = 'EPSG:6393',
