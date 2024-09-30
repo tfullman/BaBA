@@ -623,7 +623,7 @@ BaBA_default <-
 #'  that typical for a given season in the absence of potential barriers, or
 #'  movement in which crossing does not appear hindered. These consist of
 #'  “normal movement” and “quick cross” behaviors. Note that in Xu et al. (2021)
-#'  and \link{\code{BaBA_default}} “normal movement” is referred to as “average
+#'  and \code{\link{BaBA_default}} “normal movement” is referred to as “average
 #'  movement”. This has been changed here to avoid confusion between a
 #'  behavioral classification and the model approach of comparing of movement
 #'  statistics from each burst with the season-specific average and standard
@@ -680,7 +680,7 @@ BaBA_default <-
 #'    *cross_x - Numeric indicator of the x-coordinate of the location at which the straight line between subsequent points crosses the barrier indicated in \code{cross_bar}. Note that crossing may have occurred at a different location, as the crossing location is nearly always unobserved, but this is the best available indication of where the barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.
 #'    *cross_y - Numeric indicator of the y-coordinate of the location at which the straight line between subsequent points crosses the barrier indicated in \code{cross_bar}. Note that crossing may have occurred at a different location, as the crossing location is nearly always unobserved, but this is the best available indication of where the barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.
 #'    *class - Character indicator of the movement classification assigned to the given burst. Primary classes include "Average_Movement", "Quick_Cross", "Back_n_forth", "Bounce", "Trace", and "Unknown". Additional temporary indicators include "Avg_lclNA", "Unknown_insufficient_n", "Average_sd0", and "Unknown_cross_bounce". These tier to the previous classifications but provide additional information about why that categorization was reached, for diagnostic purposes.
-#'    *str_i - Numeric value indicating the straightness of movement in the given burst, as calculated by the \link{\code{strtns}} function. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.
+#'    *str_i - Numeric value indicating the straightness of movement in the given burst, as calculated by the \code{\link{strtns}} function. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.
 #'    *str_mean - Numeric value indicating the average straightness of movement for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.
 #'    *str_sd - Numeric value indicating the standard deviation of straightness of movement values for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation.
 #'    *ang_i - Numeric value indicating the average encounter angle, as a general sense of the predominant heading of movement during the encounter. Values are given in units of degrees, ranging between 0-360.
