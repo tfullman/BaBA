@@ -31,8 +31,8 @@ preferably in a projected coordinate system.}
 \item{barrier}{An \code{sf LINESTRING} or \code{MULTILINESTRING} object
 showing barrier locations to be evaluated against \code{animal} movement
 data. This should have the same spatial projection as \code{animal}. It also
-is assumed to have a column labelled "Name" that uniquely identifies each
-barrier segment, ideally with a single term (without spaces).}
+is assumed to have a column labelled \code{"Name"} that uniquely identifies
+each barrier segment, ideally with a single term (without spaces).}
 
 \item{d}{Barrier buffer size in meters if \code{barrier} has a projected
 coordinate system CRS, in the units of \code{barrier} otherwise.}
@@ -46,27 +46,28 @@ interval or a large amount of missing data.}
 \item{tolerance}{Numeric value indicating the maximum number of points that
 can occur outside of the barrier buffer but still be counted part of the
 same encounter. Note that this is a different definition of tolerance than
-that used in \link{BaBA_default}, which defined tolerance as the maximum
-duration in which points could be outside of barrier buffer and still count
-as a single encounter. The two definitions are conceptually similar, but
-have different units. Defaults to 0.}
+that used in \code{\link{BaBA_default}}, which defined tolerance as the
+maximum duration in which points could be outside of barrier buffer and
+still count as a single encounter. The two definitions are conceptually
+similar, but have different units. Defaults to 0.}
 
 \item{units}{Character string indicating the temporal units of
-\code{interval}. Values should be one of "secs", "mins", "hours", "days",
-and "weeks". Defaults to "hours".}
+\code{interval}. Values should be one of \code{"secs"}, \code{"mins"},
+\code{"hours"}, \code{"days"}, or \code{"weeks"}. Defaults to
+\code{"hours"}.}
 
 \item{sd_multiplier}{Numeric value indicating the number of standard
 deviations used to define the normal range of movement straightness.
 Increasing this value results in widening the confidence interval used to
 identify normal behavior. Defaults to 1.}
 
-\item{round_fixes}{\code{Logical}. Indicates whether elements of the
-\code{"date"} column of \code{animal} should be rounded to the nearest
-\code{units}. This is intended to account for minor variations in fix
-acquisition time that may lead to some intervals being slightly longer than
-\code{interval}. Note that this is not a replacement for cleaning the
-\code{animal} data.frame and removing repetitive timesteps as described in
-Details. Defaults to \code{FALSE}.}
+\item{round_fixes}{Logical indicator of whether elements of the \code{"date"}
+column of \code{animal} should be rounded to the nearest \code{units}. This
+is intended to account for minor variations in fix acquisition time that may
+lead to some intervals being slightly longer than \code{interval}. Note that
+this is not a replacement for cleaning the \code{animal} data.frame and
+removing repetitive timesteps as described in Details. Defaults to
+\code{FALSE}.}
 
 \item{crs}{Optional character string indicating the coordinate reference
 system used for all spatial data in the analysis. If not specified, this
@@ -75,16 +76,16 @@ with a warning. Note that this is a convenience variable used in defining
 intermediate products in the analysis and is not a replacement for data
 cleaning, preparation, and standardizing projections before the analysis.}
 
-\item{export_images}{\code{Logical} indicator of whether to export images of
-burst events as \code{.png} files named with the classification of the
-event, the \code{Animal.ID} of the animal, the \code{burstID} of the event,
-and potential prefix and suffix values specified by the \code{img_prefix}
-and \code{img_suffix} arguments. Defaults to \code{FALSE}.}
+\item{export_images}{Logical indicator of whether to export images of burst
+events as \code{.png} files named with the classification of the event, the
+\code{Animal.ID} of the animal, the \code{burstID} of the event, and
+potential prefix and suffix values specified by the \code{img_prefix} and
+\code{img_suffix} arguments. Defaults to \code{FALSE}.}
 
 \item{img_path}{Character string indicating the name of the folder to which
 images should be exported when \code{export_images == TRUE}. The folder will
 be created in the working directory if it does not exist. Defaults to
-"event_imgs".}
+\code{"event_imgs"}.}
 
 \item{img_prefix}{Optional character string to be added at the beginning of
 image file names written when \code{export_images == TRUE}.}
@@ -100,73 +101,92 @@ interest.}
 }
 \value{
 A \code{list} consisting of three objects:
- \item{$encounters} {
-   An \code{sf POINT} object with one record per burst in the dataset. These indicate the date and spatial location of the first point in each burst, along with burstID and classification information. Retained for historical reasons as a holdover from \link{BaBA_default}. The informatino here is redundant with that in \code{encounter_is}.
- }
- \item{$encounter_is}{
-   A named \code{list} object with a length equal to the number of bursts in the dataset. Names correspond to the burstID for each entry. Each entry consists of a \code{sf POINT} object with all locations for each burst in the dataset, along with corresponding information about season, barrier proximity, and crossing. Useful for visualizing specific bursts after an analysis is completed.
- }
- \item{$classification}{
-   A \code{tibble} containing the BaBA results for each burst analyzed in the dataset. Number of rows corresponds to the number of bursts. Columns include:
-   *AnimalID - Unique character indicator of each collared animal in the dataset. There will likely be multiple records for the same animal in the dataset.
-   *encounter - Unique character indicator of each encounter in the dataset, defined as one interaction of an animal with one or more barrier(s). This consists of the time from which an animal enters within a barrier buffer (\code{d}) until it leaves that buffer, with brief steps outside the buffer possible as long as they are within a pre-specified \code{tolerance}. There will likely be multiple records for the same encounter in the same dataset. Encounters are specified with the \code{AnimalID} and a uniuqe numeric indicator representing the specific encounter, separated by an underscore (e.g., '0903_1833').
-   *burstID - Unique character indicator of the specific burst evaluated. An \emph{encounter} may be split into multiple \emph{bursts}, with bursts distinguished if a barrier is crossed or the animal moves from proximity of one barrier to another while remaining within the barrier buffer (\code{d}). This allows identification of multiple behavioral responses to a single barrier, or to multiple nearby barriers. Bursts are specified with the \code{encounter} label and a uniuqe integer indicator representing the specific burst within the encounter, separated by an underscore (e.g., '0903_1833_2').
-   *season - Character indicator of the predominant season in which each burst takes place. Based on the dates of the locations in the burst and the season boundaries identified for the WAH by Joly and Cameron (2023).
-   *barrier - Character indicator of the barrier(s) with which the animal comes into proximity (i.e., within the barrier buffer distance, \code{d}) during a given burst.
-   *barrier_n - Character indicator of the number of locations in closest proximity to each barrier in the burst. For example, if a caribou had three locations closer to the Kivalina road and seven closer to the Red Dog Road in a particular burst, the value for that burst would be "Kivalina-3-RedDog-7".
-   *barrier_min_dist - Numeric value indicating the minimum distance, in km, at which a point was observed near a barrier during the given burst. Note that because observations are periodic, not continuous, the animal may have come closer to the barrier, or even crossed the barrier, but this distance is recorded based on the nearest observed point.
-   *closest_bar - Character indicator of the single barrier that is closest to most points within the given burst.
-   *closest_dist - Numeric value indicating the closest distance (in km) of any point in the burst to the closest barrier. As with \code{barrier_min_dist} the animal may have come closer to the barrier, or even crossed the barrier, at an unobserved time, but this distance reflects the nearest observed location.
-   *start_time - Datetime object indicating the date and time in \code{POSIXct} format of the first location for the given burst.
-   *end_time - Datetime object indicating the date and time in \code{POSIXct} format of the last location for the given burst.
-   *duration - Duration of the given burst, in units specified by the \code{units} argument of \code{BaBA}.
-   *cross_any - Integer indicator of the number of barrier crossings apparent in the given burst. Note, these are crossings based on straight lines connecting subsequent locations and may not be representative of real crossings.
-   *cross_true - Integer indicator of whether a crossing actually is expected to have occurred (1) or not (0). If subsequent locations are on the same side of the barrier, the animal is assumed not to have crossed the barrier.
-   *cross_bar - Character indicator of which barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.
-   *cross_x - Numeric indicator of the x-coordinate of the location at which the straight line between subsequent points crosses the barrier indicated in \code{cross_bar}. Note that crossing may have occurred at a different location, as the crossing location is nearly always unobserved, but this is the best available indication of where the barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.
-   *cross_y - Numeric indicator of the y-coordinate of the location at which the straight line between subsequent points crosses the barrier indicated in \code{cross_bar}. Note that crossing may have occurred at a different location, as the crossing location is nearly always unobserved, but this is the best available indication of where the barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.
-   *class - Character indicator of the movement classification assigned to the given burst. Primary classes include "Average_Movement", "Quick_Cross", "Back_n_forth", "Bounce", "Trace", and "Unknown". Additional temporary indicators include "Avg_lclNA", "Unknown_insufficient_n", "Average_sd0", and "Unknown_cross_bounce". These tier to the previous classifications but provide additional information about why that categorization was reached, for diagnostic purposes.
-   *str_i - Numeric value indicating the straightness of movement in the given burst, as calculated by the \link{\code{strtns}} function. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.
-   *str_mean - Numeric value indicating the average straightness of movement for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.
-   *str_sd - Numeric value indicating the standard deviation of straightness of movement values for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation.
-   *ang_i - Numeric value indicating the average encounter angle, as a general sense of the predominant heading of movement during the encounter. Values are given in units of degrees, ranging between 0-360.
-   *ang_mean - Numeric value indicating the average barrier angle, as a general sense of the predominant heading of the nearest barrier in space. Values are given in units of degrees, ranging between 0-360.
-   *ang_sd - Numeric value indicating the standard deviation of barrier angles along the nearest barrier, giving a general indication of how concentrated the direction of the barrier is in space. Values are given in units of degrees, ranging between 0-360.
-   *mrl_1 - Numeric value indicating the mean resultant length of angles between the burst points occurring \emph{before} the closest point to the given barrier. The mean resultant length indicates the concentration of data points around a circle. Used for determining whether a change in direction occurred before/after the nearest point to a barrier to help distinguish between \emph{bounce} and \emph{back-and-forth} movement.
-   *mrl_2 - Numeric value indicating the mean resultant length of angles between the burst points occurring \emph{after} the closest point to the given barrier. The mean resultant length indicates the concentration of data points around a circle. Used for determining whether a change in direction occurred before/after the nearest point to a barrier to help distinguish between \emph{bounce} and \emph{back-and-forth} movement.
-   *mrl_mean - Numeric value indicating the average value of \code{mrl_1} and \code{mrl_2}. Used in distinguishing \emph{bounce} and \emph{back-and-forth} movements, based on preliminary testing.
-   *lcl_prop - Numeric value indicating the proportion of movement steps in the given burst that are parallel to the closest barrier. Used to distinguish \emph{trace} behavior, based on preliminary testing.
-   *easting - Numeric value indicating the x-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.
-   *northing - Numeric value indicating the y-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.
+ \itemize{
+   \item{\code{$encounters}} {
+     An \code{sf POINT} object with one record per burst in the dataset. These indicate the date and spatial location of the first point in each burst, along with burstID and classification information. Retained for historical reasons as a holdover from \code{\link{BaBA_default}}. The informatino here is redundant with that in \code{encounter_is}.
    }
+   \item{\code{$encounter_is}} {
+     A named \code{list} object with a length equal to the number of bursts in the dataset. Names correspond to the burstID for each entry. Each entry consists of a \code{sf POINT} object with all locations for each burst in the dataset, along with corresponding information about season, barrier proximity, and crossing. Useful for visualizing specific bursts after an analysis is completed.
+   }
+   \item{\code{$classification}} {
+     A \code{tibble} containing the BaBA results for each burst analyzed in the dataset. Number of rows corresponds to the number of bursts. Columns include:
+     \itemize{
+       \item{\code{AnimalID}} {Unique character indicator of each collared animal in the dataset. There will likely be multiple records for the same animal in the dataset.}
+       \item{\code{encounter}} {Unique character indicator of each encounter in the dataset, defined as one interaction of an animal with one or more barrier(s). This consists of the time from which an animal enters within a barrier buffer (\code{d}) until it leaves that buffer, with brief steps outside the buffer possible as long as they are within a pre-specified \code{tolerance}. There will likely be multiple records for the same encounter in the same dataset. Encounters are specified with the \code{AnimalID} and a uniuqe numeric indicator representing the specific encounter, separated by an underscore (e.g., '0903_1833').}
+       \item{\code{burstID}} {Unique character indicator of the specific burst evaluated. An \emph{encounter} may be split into multiple \emph{bursts}, with bursts distinguished if a barrier is crossed or the animal moves from proximity of one barrier to another while remaining within the barrier buffer (\code{d}). This allows identification of multiple behavioral responses to a single barrier, or to multiple nearby barriers. Bursts are specified with the \code{encounter} label and a uniuqe integer indicator representing the specific burst within the encounter, separated by an underscore (e.g., '0903_1833_2').}
+       \item{\code{season}} {Character indicator of the predominant season in which each burst takes place. Based on the dates of the locations in the burst and the season boundaries identified for the WAH by Joly and Cameron (2023).}
+       \item{\code{barrier}} {Character indicator of the barrier(s) with which the animal comes into proximity (i.e., within the barrier buffer distance, \code{d}) during a given burst.}
+       \item{\code{barrier_n}} {Character indicator of the number of locations in closest proximity to each barrier in the burst. For example, if a caribou had three locations closer to the Kivalina road and seven closer to the Red Dog Road in a particular burst, the value for that burst would be "Kivalina-3-RedDog-7".}
+       \item{\code{barrier_min_dist}} {Numeric value indicating the minimum distance, in km, at which a point was observed near a barrier during the given burst. Note that because observations are periodic, not continuous, the animal may have come closer to the barrier, or even crossed the barrier, but this distance is recorded based on the nearest observed point.}
+       \item{\code{closest_bar}} {Character indicator of the single barrier that is closest to most points within the given burst.}
+       \item{\code{closest_dist}} {Numeric value indicating the closest distance (in km) of any point in the burst to the closest barrier. As with \code{barrier_min_dist} the animal may have come closer to the barrier, or even crossed the barrier, at an unobserved time, but this distance reflects the nearest observed location.}
+       \item{\code{start_time}} {Datetime object indicating the date and time in \code{POSIXct} format of the first location for the given burst.}
+       \item{\code{end_time}} {Datetime object indicating the date and time in \code{POSIXct} format of the last location for the given burst.}
+       \item{\code{duration}} {Duration of the given burst, in units specified by the \code{units} argument of \code{BaBA}.}
+       \item{\code{cross_any}} {Integer indicator of the number of barrier crossings apparent in the given burst. Note, these are crossings based on straight lines connecting subsequent locations and may not be representative of real crossings.}
+       \item{\code{cross_true}} {Integer indicator of whether a crossing actually is expected to have occurred (1) or not (0). If subsequent locations are on the same side of the barrier, the animal is assumed not to have crossed the barrier.}
+       \item{\code{cross_bar}} {Character indicator of which barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.}
+       \item{\code{cross_x}} {Numeric indicator of the x-coordinate of the location at which the straight line between subsequent points crosses the barrier indicated in \code{cross_bar}. Note that crossing may have occurred at a different location, as the crossing location is nearly always unobserved, but this is the best available indication of where the barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.}
+       \item{\code{cross_y}} {Numeric indicator of the y-coordinate of the location at which the straight line between subsequent points crosses the barrier indicated in \code{cross_bar}. Note that crossing may have occurred at a different location, as the crossing location is nearly always unobserved, but this is the best available indication of where the barrier was crossed. Takes a value of \code{NA} unless \code{cross_true == 1}.}
+       \item{\code{class}} {Character indicator of the movement classification assigned to the given burst. Primary classes include "Average_Movement", "Quick_Cross", "Back_n_forth", "Bounce", "Trace", and "Unknown". Additional temporary indicators include "Avg_lclNA", "Unknown_insufficient_n", "Average_sd0", and "Unknown_cross_bounce". These tier to the previous classifications but provide additional information about why that categorization was reached, for diagnostic purposes.}
+       \item{\code{str_i}} {Numeric value indicating the straightness of movement in the given burst, as calculated by the \code{\link{strtns}} function. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.}
+       \item{\code{str_mean}} {Numeric value indicating the average straightness of movement for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.}
+       \item{\code{str_sd}} {Numeric value indicating the standard deviation of straightness of movement values for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation.}
+       \item{\code{ang_i}} {Numeric value indicating the average encounter angle, as a general sense of the predominant heading of movement during the encounter. Values are given in units of degrees, ranging between 0-360.}
+       \item{\code{ang_mean}} {Numeric value indicating the average barrier angle, as a general sense of the predominant heading of the nearest barrier in space. Values are given in units of degrees, ranging between 0-360.}
+       \item{\code{ang_sd}} {Numeric value indicating the standard deviation of barrier angles along the nearest barrier, giving a general indication of how concentrated the direction of the barrier is in space. Values are given in units of degrees, ranging between 0-360.}
+       \item{\code{mrl_1}} {Numeric value indicating the mean resultant length of angles between the burst points occurring \emph{before} the closest point to the given barrier. The mean resultant length indicates the concentration of data points around a circle. Used for determining whether a change in direction occurred before/after the nearest point to a barrier to help distinguish between \emph{bounce} and \emph{back-and-forth} movement.}
+       \item{\code{mrl_2}} {Numeric value indicating the mean resultant length of angles between the burst points occurring \emph{after} the closest point to the given barrier. The mean resultant length indicates the concentration of data points around a circle. Used for determining whether a change in direction occurred before/after the nearest point to a barrier to help distinguish between \emph{bounce} and \emph{back-and-forth} movement.}
+       \item{\code{mrl_mean}} {Numeric value indicating the average value of \code{mrl_1} and \code{mrl_2}. Used in distinguishing \emph{bounce} and \emph{back-and-forth} movements, based on preliminary testing.}
+       \item{\code{lcl_prop}} {Numeric value indicating the proportion of movement steps in the given burst that are parallel to the closest barrier. Used to distinguish \emph{trace} behavior, based on preliminary testing.}
+       \item{\code{easting}} {Numeric value indicating the x-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.}
+       \item{\code{northing}} {Numeric value indicating the y-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.}
+     }  
+   }
+ }
 }
 \description{
-This is a heavily modified adaptation of \link{BaBA_default}, tailored to
-barrier analysis for Western Arctic Herd (WAH) caribou in northwestern Alaska.
-The analysis workflow of Xu et al. (2021), on which \code{BaBA_default} is
-built was reworked to improve accuracy for the WAH. See details below.
+This is a heavily modified adaptation of \code{\link{BaBA_default}}, tailored
+to barrier analysis for Western Arctic Herd (WAH) caribou in northwestern
+Alaska. The analysis workflow of Xu et al. (2021), on which
+\code{BaBA_default} is built was reworked to improve accuracy for the WAH. See
+details below.
 }
 \details{
 Terminology, behavioral classifications, and analysis approach in
  \code{BaBA_caribou} differ from that used in \code{BaBA_default} and by Xu
  et al. (2021).
 
+ \cr
+ \cr
  \strong{Terminology}
- *\emph{Encounter} - One interaction of an animal with one or more barrier(s), consisting of the time from which an animal enters within a barrier buffer (\code{d}) until it leaves that buffer, with brief steps outside the buffer possible as long as they are within a pre-specified \code{tolerance}.
- *\emph{Burst} - An \emph{encounter} may be split into multiple \emph{bursts}, with bursts distinguished if a barrier is crossed or the animal moves from proximity of one barrier to another while remaining within the barrier buffer. This allows identification of multiple behavioral responses to a single barrier, or to multiple nearby barriers with overlapping buffers.
+ \itemize{
+   \item{\emph{Encounter}}{
+     - One interaction of an animal with one or more barrier(s), consisting of the time from which an animal enters within a barrier buffer (\code{d}) until it leaves that buffer, with brief steps outside the buffer possible as long as they are within a pre-specified \code{tolerance}.
+   }
+   \item{\emph{Burst}}{
+     - An \emph{encounter} may be split into multiple \emph{bursts}, with bursts distinguished if a barrier is crossed or the animal moves from proximity of one barrier to another while remaining within the barrier buffer. This allows identification of multiple behavioral responses to a single barrier, or to multiple nearby barriers with overlapping buffers.
+   }
+ }
 
- \strong{Behavioral classifications} Potential values include:
- *Normal movement
- *Quick cross
- *Back-and-forth
- *Bounce
- *Trace
+ \cr
+ \cr
+ \strong{Behavioral classifications}
+ 
+ Potential values include:
+ \itemize{
+   \item{Normal movement}
+   \item{Quick cross}
+   \item{Back-and-forth}
+   \item{Bounce}
+   \item{Trace}
+ }
 
  "Unaltered movements" are those in which movement is indistinguishable from
  that typical for a given season in the absence of potential barriers, or
  movement in which crossing does not appear hindered. These consist of
  “normal movement” and “quick cross” behaviors. Note that in Xu et al. (2021)
- and \link{\code{BaBA_default}} “normal movement” is referred to as “average
+ and \code{\link{BaBA_default}} “normal movement” is referred to as “average
  movement”. This has been changed here to avoid confusion between a
  behavioral classification and the model approach of comparing of movement
  statistics from each burst with the season-specific average and standard
@@ -180,20 +200,26 @@ Terminology, behavioral classifications, and analysis approach in
  to be altered by the presence of a barrier. These consist of
  “back-and-forth,” “bounce,” and “trace” behaviors.
 
- \strong{Analysis approach} Extensive changes to the analysis approach were
- made in \code{BaBA_caribou} compared to \code{BaBA_default} to better
- represent behavioral responses for caribou of the Western Arctic Herd. These
- changes may not be appropriate for all study systems and species but certain
- aspects may be highly applicable in other contexts. For details of changes
- see comments in the code below. Major changes include:
- *Always excluding locations within buffers when calculating average movement and the standard deviation (sd) of movement.
- *Using season-specific average/sd movement calculations, rather than a user-specific moving window.
- *Dropped user-specified time thresholds for short-duration and long-duration events.
- *Dropped the "trapped" movement behavior, instead relying on duration and behavior to indicating when such an event occurred.
- *Added analysis of turning angles to identify behaviors such as "bounce" based not just on their duration, but also changes in direction and consistency of angles in a burst.
- *Refined how "trace" behavior is reflected to look at the direction and persistence of movement relative to the angle of the nearest barrier.
- *Distinguished between true and false crossings and tested for this in the dataset.
- *Divided encounters into bursts based on barrier crossing and proximity to nearest barrier.
+ \cr
+ \cr
+ \strong{Analysis approach}
+ 
+ Extensive changes to the analysis approach were made in \code{BaBA_caribou}
+ compared to \code{BaBA_default} to better represent behavioral responses for
+ caribou of the Western Arctic Herd. These changes may not be appropriate for
+ all study systems and species but certain aspects may be highly applicable
+ in other contexts. For details of changes see comments in the code below.
+ Major changes include:
+ \itemize{
+   \item{Always excluding locations within buffers when calculating average movement and the standard deviation (sd) of movement.}
+   \item{Using season-specific average/sd movement calculations, rather than a user-specific moving window.}
+   \item{Dropped user-specified time thresholds for short-duration and long-duration events.}
+   \item{Dropped the "trapped" movement behavior, instead relying on duration and behavior to indicating when such an event occurred.}
+   \item{Added analysis of turning angles to identify behaviors such as "bounce" based not just on their duration, but also changes in direction and consistency of angles in a burst.}
+   \item{Refined how "trace" behavior is reflected to look at the direction and persistence of movement relative to the angle of the nearest barrier.}
+   \item{Distinguished between true and false crossings and tested for this in the dataset.}
+   \item{Divided encounters into bursts based on barrier crossing and proximity to nearest barrier.}
+ }
 }
 \examples{
 \dontrun{
@@ -216,5 +242,4 @@ Joly K, Cameron MD. 2023. Caribou vital sign annual report for the
  Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier Behaviour
  Analysis (BaBA) reveals extensive effects of fencing on wide-ranging
  ungulates. Journal of Applied Ecology 58: 690-698.
- https://doi.org/10.1111/1365-2664.13806.
 }
