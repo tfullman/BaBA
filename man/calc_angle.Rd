@@ -7,7 +7,7 @@
 calc_angle(x)
 }
 \arguments{
-\item{x}{\code{\href{https://cran.r-project.org/package=sf}{sf}}
+\item{x}{\href{https://cran.r-project.org/package=sf}{\code{sf}}
 \code{POINT} object representing points of movement locations
 during an encounter or segment points along a linear barrier. This should
 have columns labelled \code{x} and \code{y} indicating the xy coordinates
@@ -24,5 +24,5 @@ Helper function used by \code{\link{BaBA_caribou}} to calculate absolute
 angles between a movement step or barrier segment and the x-axis to provide
 an indication of heading. This is adapted from code in the \code{as.ltraj}
 function of
-\code{\href{https://cran.r-project.org/package=adehabitatLT}{adehabitatLT}}.
+\href{https://cran.r-project.org/package=adehabitatLT}{\code{adehabitatLT}}.
 }

@@ -27,6 +27,6 @@ Helper function used by \code{\link{BaBA_caribou}} to project a point
 elsewhere in space given an initial point, angle for projection, and distance
 to move the point. This is adapted from the \code{CreateSegmentAngle}
 function in the
-\code{\href{https://cran.r-project.org/package=LearnGeom}{LearnGeom}}
+\href{https://cran.r-project.org/package=LearnGeom}{\code{LearnGeom}}
 package.
 }

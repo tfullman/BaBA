@@ -7,7 +7,7 @@
 strtns(mov_seg)
 }
 \arguments{
-\item{mov_seg}{\code{\href{https://cran.r-project.org/package=sf}{sf}}
+\item{mov_seg}{\href{https://cran.r-project.org/package=sf}{\code{sf}}
 \code{POINT} object representing locations that are part of the encounter
 being analyzed.}
 }
