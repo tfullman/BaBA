@@ -515,7 +515,7 @@ BaBA_default <-
             animal_i %>% 
             dplyr::group_by(continuousID) %>% 
             ## Check sample size per group
-            dplyr::mutate(n = n()) %>%
+            dplyr::mutate(n = dplyr::n()) %>%
             ## Exclude groups with only a single point to avoid errors
             dplyr::filter(n > 1) %>% 
             ## Convert to a line
@@ -838,7 +838,7 @@ BaBA_caribou <-
       ## Late summer: Jul 15 - Aug 31
       ## Fall migration: Sep 1 - Nov 30
       ## Winter: Dec 1 - Mar 31
-      mutate(season = dplyr::case_when(date >= paste0(lubridate::year(date), '-04-01') & date < paste0(lubridate::year(date), '-05-28') ~ 'spring_mig',
+      dplyr::mutate(season = dplyr::case_when(date >= paste0(lubridate::year(date), '-04-01') & date < paste0(lubridate::year(date), '-05-28') ~ 'spring_mig',
                                 date >= paste0(lubridate::year(date), '-05-28') & date < paste0(lubridate::year(date), '-06-15') ~ 'calving',
                                 date >= paste0(lubridate::year(date), '-06-15') & date < paste0(lubridate::year(date), '-07-15') ~ 'insect',
                                 date >= paste0(lubridate::year(date), '-07-15') & date < paste0(lubridate::year(date), '-09-01') ~ 'late_summer',
@@ -1481,7 +1481,7 @@ BaBA_caribou <-
       ## classified as avg movement.
       lcl_NA_check <-
         encounter_i %>% 
-        summarize(burstID = unique(burstID),
+        dplyr::summarize(burstID = unique(burstID),
                   n_tot = dplyr::n(),
                   lcl_NA = sum(is.na(bar_lcl))) %>% 
         sf::st_drop_geometry()
