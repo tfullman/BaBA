@@ -3,4 +3,3 @@
 export(BaBA)
 export(BaBA_caribou)
 export(BaBA_default)
-importFrom(magrittr, "%>%")

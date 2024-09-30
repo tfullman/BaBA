@@ -33,7 +33,7 @@ calc_dist <- function(x.start, x.end, y.start, y.end){
 #' straightness of movement during an encounter as the ratio of Euclidean to
 #' path distance.
 #'
-#' @param mov_seg \code{\href{https://cran.r-project.org/package=sf}{sf}}
+#' @param mov_seg \href{https://cran.r-project.org/package=sf}{\code{sf}}
 #'   \code{POINT} object representing locations that are part of the encounter
 #'   being analyzed.
 #'
@@ -80,9 +80,9 @@ strtns <- function(mov_seg) {
 #' angles between a movement step or barrier segment and the x-axis to provide
 #' an indication of heading. This is adapted from code in the \code{as.ltraj}
 #' function of
-#' \code{\href{https://cran.r-project.org/package=adehabitatLT}{adehabitatLT}}.
+#' \href{https://cran.r-project.org/package=adehabitatLT}{\code{adehabitatLT}}.
 #'
-#' @param x \code{\href{https://cran.r-project.org/package=sf}{sf}}
+#' @param x \href{https://cran.r-project.org/package=sf}{\code{sf}}
 #'   \code{POINT} object representing points of movement locations
 #'   during an encounter or segment points along a linear barrier. This should
 #'   have columns labelled \code{x} and \code{y} indicating the xy coordinates
@@ -132,7 +132,7 @@ angle_in_range <- function(x, lower, upper){
 #' elsewhere in space given an initial point, angle for projection, and distance
 #' to move the point. This is adapted from the \code{CreateSegmentAngle}
 #' function in the
-#' \code{\href{https://cran.r-project.org/package=LearnGeom}{LearnGeom}}
+#' \href{https://cran.r-project.org/package=LearnGeom}{\code{LearnGeom}}
 #' package.
 #'
 #' @param pt \code{data.frame} with one row and columns \code{x} and \code{y}

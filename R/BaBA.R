@@ -16,6 +16,8 @@
 #' @return A \code{list} with three components. See details in
 #'   \code{\link{BaBA_default}} and \code{\link{BaBA_caribou}}.
 #' @export
+#' 
+#' @importFrom magrittr %>%
 #'
 #' @examples
 #'   \dontrun{
@@ -194,6 +196,7 @@ BaBA <- function(caribou = FALSE, ...){
 #'  classified encounter events represented by the starting location.
 
 #'@export
+#' @importFrom magrittr %>%
 #'
 #'@author Wenjing Xu \email{wenjing.xu@berkeley.edu} and Valentine Herrmann
 #'  \email{HerrmannV@si.edu}
@@ -754,6 +757,7 @@ BaBA_default <-
 #'  }
 #'
 #'@export
+#' @importFrom magrittr %>%
 #'
 #'@references Joly K, Cameron MD. 2023. Caribou vital sign annual report for the
 #'  Arctic Network Inventory and Monitoring Program: September 2022–August 2023.
