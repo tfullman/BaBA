@@ -821,7 +821,7 @@ BaBA_caribou <-
     }
     
     
-    # Classification step 1: generate encounter event data.frame --------------
+    # Classification step 1: generate encounter and burst data --------------
 
     ## Create point ID by individual and add season indicators
     animal <-
@@ -989,7 +989,7 @@ BaBA_caribou <-
     }
     
     ## Create buffer around barrier for identifying encounters
-    print("locating encounter events...")
+    print("locating encounters...")
     barrier_buffer <- 
       barrier %>% 
       sf::st_buffer(dist = d, nQuadSegs = 5) %>%   ## Note that nQuadSegs is set to 5 as this was the default value for rgeos::gBuffer in previous versions of BaBA
@@ -998,7 +998,7 @@ BaBA_caribou <-
     ## Extract points that fall inside the buffer
     encounter <- sf::st_intersection(animal, barrier_buffer)
     
-    if (nrow(encounter) == 0) stop("no barrier encounter detected.")
+    if (nrow(encounter) == 0) stop("no barrier encounter detected")
     
     ## Create an object to hold crossing coordinates
     cross_coords <- NULL
@@ -1043,10 +1043,10 @@ BaBA_caribou <-
                             ptsID > ptsID_of_interest_A & 
                             ptsID < ptsID_of_interest_B)
           
-          ## If there are no points outside of the buffer that means there is
+          ## If there are no points outside of the buffer that means there are
           ## missing data. Since the missing data are still within the
           ## tolerance, we consider ptdiff = 0 so the points before and after
-          ## will be in the same event.
+          ## will be in the same encounter.
           if (nrow(fetched_pt) == 0) {  
             encounter_i$ptdiff[pt] <- 0
             next() } 
@@ -1155,7 +1155,7 @@ BaBA_caribou <-
           ## Indicate that a crossing was indicated. Using j + 1 sets this to be
           ## the endpoint of the crossing (i.e., after the purported crossing
           ## has occurred), which is important when using the crossing
-          ## information to split encounters into sub-bursts below.
+          ## information to split encounters into bursts below.
           encounter_i$cross_ind[j+1] <- 1
           
           ## Pull the road side polygons for the intersected barrier
@@ -1186,7 +1186,7 @@ BaBA_caribou <-
       }
       
       ## Add column to encounter_i that indicates parts before/after crossing,
-      ## which I can use to identify different sub-bursts based on crossing events.
+      ## which is used to identify different bursts based on crossing events.
       encounter_i$cumcross <- cumsum(encounter_i$cross_true)
       
       ## Output the results
@@ -1217,8 +1217,8 @@ BaBA_caribou <-
         ## Deal with NAs in bar_dif and cumcross, to allow summing
         bar_dif2 = ifelse(is.na(bar_dif), 0, bar_dif),
         cumcross2 = ifelse(is.na(cumcross), 0, cumcross),
-        ## Sum barrier differences and cumulative crossing to get unique indicators
-        ## (per burstID) of barrier/crossing events
+        ## Sum barrier differences and cumulative crossing to get unique
+        ## indicators (per burstID) of barrier/crossing events
         barcross = bar_dif2 + cumcross2) %>% 
       ## Add in the by-group sum of cumcross to each record
       dplyr::group_by(burstID) %>% 
@@ -1235,17 +1235,18 @@ BaBA_caribou <-
         cross_ind = ifelse(is.na(cross_ind.y), cross_ind.x, cross_ind.y),
         cross_true = ifelse(is.na(cross_true.y), cross_true.x, cross_true.y)) %>% 
       ## Retain only the needed columns
-      dplyr::select(Animal.ID:geometry, burstID = burstID2, cross_ind, cross_true,
-                    cross_bar = cross_bar.y, cross_x = cross_x.y, cross_y = cross_y.y)
+      dplyr::select(Animal.ID:geometry, burstID = burstID2, cross_ind,
+                    cross_true, cross_bar = cross_bar.y, cross_x = cross_x.y,
+                    cross_y = cross_y.y)
     
     
-    ## Rename as encounter (encounter_complete may be bigger as it includes extra
-    ## points that are within tolerance)
+    ## Rename as encounter (encounter_complete may be bigger as it includes
+    ## extra points that are within tolerance)
     encounter <- encounter_complete
     
     
     
-    # Classification step 2: classify events ----------------------------------
+    # Classification step 2: classify bursts ----------------------------------
 
     print("classifying behaviors...") 
     ## Open progress bar
@@ -1253,23 +1254,23 @@ BaBA_caribou <-
     
     ## Create empty object that will hold results
     event_df <- NULL
-    ## Keep the encounter_i objects for use in plotting specific encounters
+    ## Keep the encounter_i objects for use in plotting specific bursts
     encounter_i_out <- vector('list', length(unique(encounter$burstID)))
     names(encounter_i_out) <- unique(encounter$burstID)
     
-    ## Run classification procedure for each encounter
+    ## Run classification procedure for each burst
     for(i in unique(encounter$burstID)) {
       ## Update progressbar
       utils::setTxtProgressBar(pb, which(unique(encounter$burstID) == i)/length(unique(encounter$burstID)))
       
-      ## Subset down to the specific encounter and animal data
+      ## Subset down to the specific burst and animal data
       encounter_i <- encounter[encounter$burstID == i, ]
       animal_i <- animal[animal$Animal.ID == encounter_i$Animal.ID[1],]
       
-      ## Expand the encounter by one point on either side to include the step
-      ## that brings the animal within the barrier buffer. This will also
-      ## include the step that takes the animal from one nearest barrier to
-      ## another within the same buffer, if applicable.
+      ## Expand the burst by one point on either side to include the step that
+      ## brings the animal within the barrier buffer, crosses a barrier, or
+      ## takes the animal from one nearest barrier to another within the same
+      ## buffer, as applicable.
       encounter_i <-
         animal_i %>% 
         dplyr::filter(ptsID == encounter_i$ptsID[1] - 1 |
@@ -1288,7 +1289,7 @@ BaBA_caribou <-
       if(round_fixes) duration <- round(duration)
       straightness_i <- strtns(encounter_i)
       
-      ## Calculate turning angles of the encounter and add them to encounter_i
+      ## Calculate turning angles of the burst and add them to encounter_i
       encounter_i$angle <- 
         calc_angle(x = encounter_i) %>% 
         circular::circular(zero = 0) %>%
@@ -1300,7 +1301,7 @@ BaBA_caribou <-
       ## already indicated for the second location of the burst (i.e., the
       ## endpoint of the first step). It also is only evaluated if the previous
       ## location is within 3 days of the current location, so that excessive
-      ## missing data does not lead to an indication of a crossing where one is
+      ## missing data do not lead to an indication of a crossing where one is
       ## unclear.
       if(encounter_i$cross_ind[2] == 0 &
          difftime(encounter_i$date[2], encounter_i$date[1], units = units) < 72){
@@ -1311,12 +1312,12 @@ BaBA_caribou <-
         sf::st_agr(pts_tmp) <- 'constant'
         int_check <- sf::st_intersection(line_tmp, barrier)
         
-        ## If there's an intersection, check for points on different sides of the
-        ## barrier to indicate a true crossing
+        ## If there's an intersection, check for points on different sides of
+        ## the barrier to indicate a true crossing
         if(nrow(int_check) > 0){
-          ## Indicate that a crossing was indicated. As is done above, indicate this
-          ## for the endpoint of the crossing (i.e., after the purported crossing
-          ## has occurred).
+          ## Indicate that a crossing was indicated. As is done above, indicate
+          ## this for the endpoint of the crossing (i.e., after the purported
+          ## crossing has occurred).
           encounter_i$cross_ind[2] <- 1
           
           ## Pull the road side polygons for the intersected barrier
@@ -1332,7 +1333,8 @@ BaBA_caribou <-
           ## indicate a true crossing
           encounter_i$cross_true[2] <- ifelse(nrow(enc_poly1) == 0 | nrow(enc_poly2) == 0, 0, 1)
           
-          ## If a true crossing occured, record the barrier that was crossed and location
+          ## If a true crossing occurred, record the barrier that was crossed
+          ## and location
           if(encounter_i$cross_true[2] == 1){
             encounter_i$cross_bar[2] <- paste(int_check$Name, collapse = '_')
             encounter_i$cross_x[2] <- dplyr::first(sf::st_coordinates(int_check)[,1])
@@ -1348,42 +1350,41 @@ BaBA_caribou <-
       ## Identify the closest barrier to most points, for use below
       bar_closest <- names(which.max(table(encounter_i$bar_min)))
       
-      ## Identify the season of the encounter for pulling seasonal data below
-      ## and to facilitate subsequent analysis by season. If the encounter spans
-      ## seasons, isolate the modal season so that we compare avg movement
-      ## during the most represented season to that during the encounter.
+      ## Identify the season of the burst for pulling seasonal data below
+      ## and to facilitate subsequent analysis by season. If the burst spans
+      ## seasons, isolate the modal season to compare avg movement
+      ## during the most represented season to that during the burst.
       season_i <- names(which.max(table(encounter_i$season)))
       
       ## Identify all seasonal points outside of buffers for calculation of
       ## avg movement statistics
       animal_season_exclude <-
         animal_i %>% 
-        ## Subset down to the most common season in the encounter
+        ## Subset down to the most common season in the burst
         dplyr::filter(season == season_i) %>% 
         ## Remove all points inside buffers
         dplyr::filter(!(ptsID %in% encounter$ptsID[encounter$Animal.ID == animal_i$Animal.ID[1]])) %>% 
         ## Add indicator of point difference. Subtract one from each so that
-        ## subsequent ptsIDs get a value of zero, which will be useful for
-        ## calculating the burstIDs below.
+        ## subsequent ptsIDs get a value of zero.
         dplyr::mutate(ptdiff = ptsID - dplyr::lag(ptsID) - 1)
       ## Set the first ptdiff value to zero
       animal_season_exclude$ptdiff[1] <- 0
       ## Reset any point differences within tolerance to zero to not split up
-      ## continuous segments by missing data if it is within the specified
+      ## continuous segments by missing data if within the specified
       ## tolerance level
       animal_season_exclude$ptdiff[animal_season_exclude$ptdiff <= tolerance] <- 0
       ## Identify continuous sections in the remaining movement data
       animal_season_exclude$continuousID <- cumsum(animal_season_exclude$ptdiff)
       
       ## For each continuous section, calculate straightness of all movements
-      ## lasting the duration of the encounter (moving window of the size of the
-      ## encounter) or 1000 hrs, whichever is shorter.
+      ## lasting the duration of the burst (moving window of the size of the
+      ## burst) or 1000 hrs, whichever is shorter.
       duration_comp <- min(as.numeric(duration), 1000)
       straightnesses_seasonal <- NULL
       for(ii in unique(animal_season_exclude$continuousID)) {
         animal_ii <- animal_season_exclude[animal_season_exclude$continuousID == ii, ]
         duration_ii <- difftime(animal_ii$date[nrow(animal_ii)], animal_ii$date[1], units = units)
-        ## Calculate straightness only if at least as long as encounter event
+        ## Calculate straightness only if at least as long as the burst duration
         if(duration_ii >= duration_comp) {
           animal_ii$indur <- !(animal_ii$date > (animal_ii$date[nrow(animal_ii)] - as.difftime(duration_comp, units = units)))
           for(iii in 1:nrow(animal_ii)){
@@ -1400,8 +1401,8 @@ BaBA_caribou <-
         }
       }
       
-      ## Determine the confidence interval for "average movement" as mean +/-
-      ## sd*sd_multiplier
+      ## Determine the confidence interval for "normal movement" as mean +/-
+      ## sd_multiplier * sd
       str_mean <- mean(straightnesses_seasonal, na.rm = TRUE)
       str_sd <- stats::sd(straightnesses_seasonal, na.rm = TRUE)
       upper <- str_mean + sd_multiplier * str_sd
@@ -1419,10 +1420,11 @@ BaBA_caribou <-
       ## is within the CI of the nearest barrier segment
       encounter_i$bar_lcl <- NA
       for(j in 1:(nrow(encounter_i)-1)){
-        ## Check if the nearest barrier points are the same point, if so, leave NA
+        ## Check if the nearest barrier points are the same point. If so, leave
+        ## as NA.
         if(encounter_i$bar_pt_min[j] != encounter_i$bar_pt_min[j+1]){
           ## Check if the nearest barrier points are from the same barrier. If
-          ## not then leave the NA.
+          ## not, then leave as NA.
           if(barrier_pts_all$Name[barrier_pts_all$barID == encounter_i$bar_pt_min[j]] ==
              barrier_pts_all$Name[barrier_pts_all$barID == encounter_i$bar_pt_min[j+1]]){
             ## Otherwise, pull all the barrier points between the nearest points
@@ -1435,7 +1437,7 @@ BaBA_caribou <-
               barrier_pts_all %>% 
               dplyr::filter(barID >= min(encounter_i$bar_pt_min[j], encounter_i$bar_pt_min[j+1]) &
                        barID <= max(encounter_i$bar_pt_min[j], encounter_i$bar_pt_min[j+1])) %>% 
-              ## Calculate angles of the barrier segment and determine its mean
+              ## Calculate angles of the barrier segment and determine the mean
               ## and sd
               calc_angle()
             lcl_mean <- 
@@ -1466,20 +1468,21 @@ BaBA_caribou <-
         }
       }
       
-      ## Calculate the proportion of parallel steps (1s), taking NAs into account
+      ## Calculate the proportion of parallel steps (1s), taking NAs into
+      ## account
       lcl_prop <- sum(encounter_i$bar_lcl, na.rm = TRUE)/nrow(encounter_i)
       
       
       
-      ### Classify the event ------------------------------------------------------
+      ### Classify the burst ------------------------------------------------------
 
-      ## Earlier testing showed a need to prioritize trace behavior, otherwise
-      ## it tends to get classified as avg mvmt when a response to the barrier
-      ## is clear.
+      ## Testing showed a need to prioritize trace behavior, otherwise it tends
+      ## to get classified as normal mvmt when a response to the barrier is
+      ## clear.
       
       ## Check whether all bar_lcl are NA. This represents a situation in which
       ## all locations point to the same segment of the barrier and will get
-      ## classified as avg movement.
+      ## classified as normal movement.
       lcl_NA_check <-
         encounter_i %>% 
         dplyr::summarize(burstID = unique(burstID),
@@ -1487,22 +1490,22 @@ BaBA_caribou <-
                   lcl_NA = sum(is.na(bar_lcl))) %>% 
         sf::st_drop_geometry()
       
-      ## Classify the encounter, assigning avg if all bar_lcl are NA
+      ## Classify the burst, assigning normal if all bar_lcl are NA
       if(lcl_NA_check$lcl_NA == lcl_NA_check$n_tot){
-        classification <- 'Avg_lclNA'
+        classification <- 'Normal_lclNA'
         
         ## If not, check whether the trace and duration thresholds were met and
         ## assign behavior accordingly. Trace behavior involves some persistence,
-        ## so to qualify as trace behavior the duration of the encounter must be
+        ## so to qualify as trace behavior the duration of the burst must be
         ## at least 3 days (72 hrs), based on preliminary testing.
       } else if(lcl_prop >= 0.2 & duration >= 72){
         classification <- 'Trace'
         
-        ## Classify average movement
+        ## Classify normal movement
       } else if(straightness_i >= lower & straightness_i <= upper){
-        classification <- "Average_Movement"
+        classification <- "Normal_Movement"
         
-        ## Classify straight encounters (trace, quick cross) 
+        ## Classify straight bursts (trace, quick cross) 
       } else if(straightness_i > upper){
         
         ## Check whether movement is more parallel or perpendicular to the
@@ -1569,14 +1572,14 @@ BaBA_caribou <-
         barrier_upper2 <- (barrier_i_mean + sd_multiplier * barrier_i_sd + 180) %% 360
         barrier_lower2 <- (barrier_i_mean - sd_multiplier * barrier_i_sd + 180) %% 360
         
-        ## Calculate the mean encounter angle
+        ## Calculate the mean burst movement angle
         encounter_i_mean <-
           encounter_i$angle %>% 
           circular::circular(zero = 0, units = 'degrees') %>% 
           circular::mean.circular(na.rm = TRUE) %% 360
         
-        ## Check whether the mean encounter angle lies within the calculated
-        ## limits and assign behavior accordingly
+        ## Check whether the mean angle lies within the calculated limits and
+        ## assign behavior accordingly
         if(angle_in_range(encounter_i_mean, barrier_lower, barrier_upper) |
            angle_in_range(encounter_i_mean, barrier_lower2, barrier_upper2)){
           classification <- 'Trace'
@@ -1584,13 +1587,13 @@ BaBA_caribou <-
           classification <- ifelse(cross_true > 0, 'Quick_Cross', 'Unknown')
         }
         
-        ## Classify non-straight encounters (bounce, back and forth)
+        ## Classify non-straight bursts (bounce, back-and-forth)
       } else{
         
         ## Did the animal change direction of movement after approaching the
         ## barrier?
         
-        ## Split the encounter locations into two groups before and after the
+        ## Split the burst locations into two groups before and after the
         ## point closest to the barrier, including the closest point in each.
         close_pt <-
           encounter_i %>% 
@@ -1638,10 +1641,10 @@ BaBA_caribou <-
           ## comparison classify as unknown
           classification <- 'Unknown_insufficient_n'
           
-          ## If the sd is 0 make this avg movment because there is only a single
-          ## step
+          ## If the sd is 0 make this normal movement because there is only a
+          ## single step
         } else if(encounter_i1_sd == 0){
-          classification <- 'Average_sd0'
+          classification <- 'Normal_sd0'
           
           ## Is the mean of the second group's angles outside the limits of the
           ## first group's angles? If so, is the avg mean resultant length
@@ -1667,7 +1670,7 @@ BaBA_caribou <-
 
       ### Consolidate outputs -----------------------------------------------------
 
-      ## Plot the encounters to check later, if desired
+      ## Plot the burst, if desired
       if (export_images) {
         grDevices::png(paste0(img_path, "/", img_prefix, "_", i, "_", classification, "_", img_suffix, ".png"), width = 12, height = 12, units = "in", res = 300)
         plot(sf::st_geometry(encounter_i), main = paste0(paste(encounter_i$burstID[1], classification, sep = ' - '), '\n', paste(paste(sort(unique(encounter_i$bar_min)), collapse = '-'), season_i, sep = ' - ')),
@@ -1694,7 +1697,7 @@ BaBA_caribou <-
         mrl_1 <- NA
         mrl_2 <- NA
         mrl_mean <- NA
-      } else if(classification %in% c('Bounce', 'Back_n_forth', 'Unknown_cross_bounce', 'Unknown_insufficient_n', 'Average_sd0')){
+      } else if(classification %in% c('Bounce', 'Back_n_forth', 'Unknown_cross_bounce', 'Unknown_insufficient_n', 'Normal_sd0')){
         ang_i <- encounter_i2_mean
         ang_mean <- encounter_i1_mean
         ang_sd <- encounter_i1_sd
@@ -1774,7 +1777,7 @@ BaBA_caribou <-
     
     # Finalize data -----------------------------------------------------------
 
-    print("creating dataframe...")
+    print("finalizing output data...")
     
     ## Clean the encounter data
     encounter_final <- 
