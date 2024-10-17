@@ -796,6 +796,7 @@ BaBA_caribou <-
     if (!(sf::st_geometry_type(barrier)[1] %in% c('MULTILINESTRING', 'LINESTRING'))) stop("barrier needs to have either a LINESTRING or MULTILINESTRING geometry")
     if (!"date" %in% names(animal)) stop("Please rename the date column to 'date'")
     if (!"Animal.ID" %in% names(animal)) stop("Please rename the individual ID column to 'Animal.ID'")
+    if (!"Name" %in% names(barrier)) stop("The barrier file must have a column labelled 'Name' that uniquely identifies each barrier segment")
     if (!(inherits(animal$date, "POSIXct"))) stop("Date needs to be 'POSIXct' format")
     if (sum(is.na(animal$date)) > 0) stop("Please exclude rows where date is NA")
     if(is.null(crs)) warning("No crs specified. assuming crs for animal applies to all spatial data") 
