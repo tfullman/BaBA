@@ -906,7 +906,7 @@ BaBA_caribou <-
         ifelse(length(d) > 1,
                d[which(barrier$Name == bar_tmp$Name[1])],
                d)
-      d_target <- ifelse(bar_tmp$Name[1] == 'Dalton', 10*d, 2*d)
+      d_target <- ifelse(bar_tmp$Name[1] == 'Dalton', 10*d_tmp, 2*d_tmp)
       
       ## First extend the barrier on either end in the predominant barrier
       ## direction
