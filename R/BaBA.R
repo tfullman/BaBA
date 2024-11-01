@@ -1732,7 +1732,7 @@ BaBA_caribou <-
       ## Combine output
       event_tmp <- 
         tibble::tibble(AnimalID = encounter_i$Animal.ID[1],
-               encounter = gsub('(\\d+\\w?_\\d+)(_?\\d?)', '\\1', i),
+               encounter = gsub('(\\d+\\w?_\\d+)(_?\\d?\\d?)', '\\1', i),
                burstID = i,
                season = season_i,
                barrier = paste(sort(unique(encounter_i$bar_min)), collapse = '-'),
