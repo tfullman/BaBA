@@ -1,6 +1,10 @@
 MIT License
 
+Original BaBA code (now in BaBA_default and helper):
 Copyright (c) 2019 wx-ecology
+
+Modified BaBA code (found in BaBA_caribou and some helper functions):
+Copyright (c) 2025 Tim Fullman
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
