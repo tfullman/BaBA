@@ -30,15 +30,15 @@ calc_dist <- function(x.start, x.end, y.start, y.end){
 #' Calculate straightness of movement segment
 #'
 #' Helper function used by the \code{\link{BaBA_caribou}} function to calculate
-#' straightness of movement during an encounter as the ratio of Euclidean to
+#' straightness of movement during a burst as the ratio of Euclidean to
 #' path distance.
 #'
 #' @param mov_seg \href{https://cran.r-project.org/package=sf}{\code{sf}}
-#'   \code{POINT} object representing locations that are part of the encounter
+#'   \code{POINT} object representing locations that are part of the burst
 #'   being analyzed.
 #'
 #' @return Numeric value indicating the straightness of movement during the
-#'   encounter. Values range between 0-1, with values closer to 0 indicating
+#'   burst. Values range between 0-1, with values closer to 0 indicating
 #'   more sinuous movement.
 #' 
 strtns <- function(mov_seg) {
@@ -84,7 +84,7 @@ strtns <- function(mov_seg) {
 #'
 #' @param x \href{https://cran.r-project.org/package=sf}{\code{sf}}
 #'   \code{POINT} object representing points of movement locations
-#'   during an encounter or segment points along a linear barrier. This should
+#'   during a burst or segment points along a linear barrier. This should
 #'   have columns labelled \code{x} and \code{y} indicating the xy coordinates
 #'   of feature \code{x}.
 #'
@@ -157,7 +157,7 @@ line_extend <- function (pt, angle, len){
 
 
 ## Helper function used by BaBA_default() to increase movement segment by one
-## points before and one point after the focused encounter
+## points before and one point after the focused burst
 movement.segment.b <- function(animal, pt1, pt2) {
   pts_tmp <- animal[animal$ptsID >= pt1 - 1 & animal$ptsID <= pt2 + 1, ]
   pts_comb <- dplyr::summarize(pts_tmp, do_union = FALSE)
