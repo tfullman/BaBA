@@ -1,35 +1,21 @@
 # Barrier Behavior Analysis
 ## Description
-Barrier Behavior Analysis (BaBA)is a spatial- and temporal-explicit method to identify and classify barrier behaviors, fence behaviors in our case, based on GPS tracking data and linear spatial features. Barrier behaviors can be used to examine permeability of barriers for animal movement.
+The Barrier Behavior Analysis (BaBA) is a spatially and temporally explicit method to identify and classify barrier behaviors based on GPS tracking data and linear spatial features. Barrier behaviors can be used to examine permeability of barriers for animal movement.
 
-The 6 kinds of behaviors that BaBA classifies is: bounce, trace, back-n-forth, average movement, quick cross, trapped. See illustration:
-![BaBA catogory classes](BaBA_Catogories.png)
+The BaBA was originally developed by Xu et al. (2021) for use with fences and has been heavily modified here for use with road interactions by caribou of the Western Arctic Herd in northwestern Alaska. The original approach can be run using the argument \code{caribou = FALSE} in the \code{BaBA} function. Use \code{caribou = TRUE} to run our modified version.
 
-To install the latest development version of BaBA, in an R session, type: 
-**devtools::install_github("wx-ecology/BaBA")**
+Our modified BaBA classifies 5 movement behaviors: normal, quick cross, back-and-forth, bounce, and trace. See the following examples of each:
+![BaBA catogory classes](Fig_2.png)
+
+To install the latest development version of our modified BaBA, open an R session and run: 
+**devtools::install_github('tfullman/BaBA')**
 
 ## BaBA Workflow
-![BaBA workflow](Flowchart.png)
+![BaBA workflow](Classification_Workflow.jpg)
 
-## Updates
-V2.1 (April 23, 2024)
-1. fixed issues related to straightness calculation that produces excessive "unknown" results
-2. fixed issues related to tolerance in the new sf-based function 
 
-V2.0 (September 27, 2023) 
-1. Update package to run on sf instead of sp
-2. details [here](https://github.com/wx-ecology/BaBA/pull/4#issue-1903676738)
+## Relevant publications: 
+Fullman TJ, Joly K, Gustine DD, Cameron MD. in review. Behavioral responses of migratory caribou to semi-permeable roads in arctic Alaska. Scientific Reports.
 
-V1.3 (Apr 14, 2023)
-1. Fixed bug related to "tolerance"
-
-V1.2 (May 26, 2022)
-1. Solve encounters and classified encounters mismatch issue
-
-V1.1 (April 10, 2021)
-1. Improved the visualization of exported images 
-2. Added time unit option and unified all temporal parameter units
-
-## Relevant publication: 
-Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. Barrier Behaviour Analysis (BaBA) reveals extensive effects of fencing on wide-ranging ungulates. J Appl Ecol. 2020;00:1–9. https://doi.org/10.1111/1365-2664.13806
+Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier Behaviour Analysis (BaBA) reveals extensive effects of fencing on wide-ranging ungulates. J Appl Ecol 58, 690-698. https://doi.org/10.1111/1365-2664.13806
 
