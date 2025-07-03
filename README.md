@@ -2,7 +2,7 @@
 ## Description
 The Barrier Behavior Analysis (BaBA) is a spatially and temporally explicit method to identify and classify barrier behaviors based on GPS tracking data and linear spatial features. Barrier behaviors can be used to examine permeability of barriers for animal movement.
 
-The BaBA was originally developed by Xu et al. (2021) for use with fences and has been heavily modified here for use with road interactions by caribou of the Western Arctic Herd in northwestern Alaska. The original approach can be run using the argument \code{caribou = FALSE} in the \code{BaBA} function. Use \code{caribou = TRUE} to run our modified version.
+The BaBA was originally developed by Xu et al. (2021) for use with fences and has been heavily modified here for use with road interactions by caribou of the Western Arctic Herd in northwestern Alaska. The original approach can be run using the argument caribou = FALSE in the BaBA function. Use caribou = TRUE to run our modified version.
 
 Our modified BaBA classifies 5 movement behaviors: normal, quick cross, back-and-forth, bounce, and trace. See the following examples of each:
 ![BaBA catogory classes](Fig_2.png)
