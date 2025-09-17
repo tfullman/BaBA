@@ -9,7 +9,7 @@ calc_angle(x)
 \arguments{
 \item{x}{\href{https://cran.r-project.org/package=sf}{\code{sf}}
 \code{POINT} object representing points of movement locations
-during an encounter or segment points along a linear barrier. This should
+during a burst or segment points along a linear barrier. This should
 have columns labelled \code{x} and \code{y} indicating the xy coordinates
 of feature \code{x}.}
 }

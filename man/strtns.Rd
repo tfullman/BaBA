@@ -8,16 +8,16 @@ strtns(mov_seg)
 }
 \arguments{
 \item{mov_seg}{\href{https://cran.r-project.org/package=sf}{\code{sf}}
-\code{POINT} object representing locations that are part of the encounter
+\code{POINT} object representing locations that are part of the burst
 being analyzed.}
 }
 \value{
 Numeric value indicating the straightness of movement during the
-  encounter. Values range between 0-1, with values closer to 0 indicating
+  burst. Values range between 0-1, with values closer to 0 indicating
   more sinuous movement.
 }
 \description{
 Helper function used by the \code{\link{BaBA_caribou}} function to calculate
-straightness of movement during an encounter as the ratio of Euclidean to
+straightness of movement during a burst as the ratio of Euclidean to
 path distance.
 }

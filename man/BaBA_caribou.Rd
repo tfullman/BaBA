@@ -24,7 +24,8 @@ BaBA_caribou(
 \arguments{
 \item{animal}{An \code{sf POINT} object representing animal telemetry
 locations with a column named \code{"Animal.ID"} that identifies each
-individual and a column named \code{"date"} in \code{"POSIXct"} format. The
+individual and a column named \code{"date"} in \code{"POSIXct"} format.
+Location coordinate columns should be named \code{"x"} and \code{"y"}. The
 coordinate reference system of \code{animal} should match \code{barrier},
 preferably in a projected coordinate system.}
 
@@ -35,7 +36,8 @@ is assumed to have a column labelled \code{"Name"} that uniquely identifies
 each barrier segment, ideally with a single term (without spaces).}
 
 \item{d}{Barrier buffer size in meters if \code{barrier} has a projected
-coordinate system CRS, in the units of \code{barrier} otherwise.}
+coordinate system CRS, in the units of \code{barrier} otherwise. Can take a
+single integer value or vector of values of equal length to \code{barrier}.}
 
 \item{interval}{Optional. Numeric value specifying the time interval of the
 movement data (in units specified in \code{units}). If not specified, BaBA
@@ -105,7 +107,7 @@ A \code{list} consisting of three objects:
    \item{\code{$encounters}} {
      An \code{sf POINT} object with one record per burst in the dataset. These indicate the date and spatial location of the first point in each burst, along with burstID and classification information. Retained for historical reasons as a holdover from \code{\link{BaBA_default}}. The informatino here is redundant with that in \code{encounter_is}.
    }
-   \item{\code{$encounter_is}} {
+   \item{\code{$burst_is}} {
      A named \code{list} object with a length equal to the number of bursts in the dataset. Names correspond to the burstID for each entry. Each entry consists of a \code{sf POINT} object with all locations for each burst in the dataset, along with corresponding information about season, barrier proximity, and crossing. Useful for visualizing specific bursts after an analysis is completed.
    }
    \item{\code{$classification}} {
@@ -132,7 +134,7 @@ A \code{list} consisting of three objects:
        \item{\code{str_i}} {Numeric value indicating the straightness of movement in the given burst, as calculated by the \code{\link{strtns}} function. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.}
        \item{\code{str_mean}} {Numeric value indicating the average straightness of movement for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation. Values range between 0-1, with with values closer to 0 indicating more sinuous movement.}
        \item{\code{str_sd}} {Numeric value indicating the standard deviation of straightness of movement values for other movements of the same duration as the given burst, that occur outside of barrier buffers in the same season for the given individual across all years of observation.}
-       \item{\code{ang_i}} {Numeric value indicating the average encounter angle, as a general sense of the predominant heading of movement during the encounter. Values are given in units of degrees, ranging between 0-360.}
+       \item{\code{ang_i}} {Numeric value indicating the average burst angle, as a general sense of the predominant heading of movement during the burst. Values are given in units of degrees, ranging between 0-360.}
        \item{\code{ang_mean}} {Numeric value indicating the average barrier angle, as a general sense of the predominant heading of the nearest barrier in space. Values are given in units of degrees, ranging between 0-360.}
        \item{\code{ang_sd}} {Numeric value indicating the standard deviation of barrier angles along the nearest barrier, giving a general indication of how concentrated the direction of the barrier is in space. Values are given in units of degrees, ranging between 0-360.}
        \item{\code{mrl_1}} {Numeric value indicating the mean resultant length of angles between the burst points occurring \emph{before} the closest point to the given barrier. The mean resultant length indicates the concentration of data points around a circle. Used for determining whether a change in direction occurred before/after the nearest point to a barrier to help distinguish between \emph{bounce} and \emph{back-and-forth} movement.}
@@ -141,7 +143,7 @@ A \code{list} consisting of three objects:
        \item{\code{lcl_prop}} {Numeric value indicating the proportion of movement steps in the given burst that are parallel to the closest barrier. Used to distinguish \emph{trace} behavior, based on preliminary testing.}
        \item{\code{easting}} {Numeric value indicating the x-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.}
        \item{\code{northing}} {Numeric value indicating the y-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.}
-     }  
+     }
    }
  }
 }
@@ -150,16 +152,14 @@ This is a heavily modified adaptation of \code{\link{BaBA_default}}, tailored
 to barrier analysis for Western Arctic Herd (WAH) caribou in northwestern
 Alaska. The analysis workflow of Xu et al. (2021), on which
 \code{BaBA_default} is built was reworked to improve accuracy for the WAH. See
-details below.
+details in Fullman et al. (2025) and below.
 }
 \details{
 Terminology, behavioral classifications, and analysis approach in
  \code{BaBA_caribou} differ from that used in \code{BaBA_default} and by Xu
  et al. (2021).
 
- \cr
- \cr
- \strong{Terminology}
+ \cr \cr \strong{Terminology}
  \itemize{
    \item{\emph{Encounter}}{
      - One interaction of an animal with one or more barrier(s), consisting of the time from which an animal enters within a barrier buffer (\code{d}) until it leaves that buffer, with brief steps outside the buffer possible as long as they are within a pre-specified \code{tolerance}.
@@ -169,10 +169,8 @@ Terminology, behavioral classifications, and analysis approach in
    }
  }
 
- \cr
- \cr
- \strong{Behavioral classifications}
- 
+ \cr \cr \strong{Behavioral classifications}
+
  Potential values include:
  \itemize{
    \item{Normal movement}
@@ -200,10 +198,8 @@ Terminology, behavioral classifications, and analysis approach in
  to be altered by the presence of a barrier. These consist of
  “back-and-forth,” “bounce,” and “trace” behaviors.
 
- \cr
- \cr
- \strong{Analysis approach}
- 
+ \cr \cr \strong{Analysis approach}
+
  Extensive changes to the analysis approach were made in \code{BaBA_caribou}
  compared to \code{BaBA_default} to better represent behavioral responses for
  caribou of the Western Arctic Herd. These changes may not be appropriate for
@@ -234,12 +230,16 @@ wah.out <- BaBA_caribou(animal = wah_all, barrier = rd_final,
 }
 }
 \references{
-Joly K, Cameron MD. 2023. Caribou vital sign annual report for the
- Arctic Network Inventory and Monitoring Program: September 2022–August 2023.
+Fullman TJ, Joly K, Gustine DD, Cameron MD. 2025. Behavioral
+ responses of migratory caribou to semi-permeable roads in arctic Alaska.
+ Scientific Reports 15, 24712. https://doi.org/10.1038/s41598-025-10216-6
+
+ Joly K, Cameron MD. 2023. Caribou vital sign annual report for the Arctic
+ Network Inventory and Monitoring Program: September 2022–August 2023.
  Natural Resource Report NPS/ARCN/NRR—2023/2612. National Park Service, Fort
  Collins, Colorado.
 
  Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier Behaviour
  Analysis (BaBA) reveals extensive effects of fencing on wide-ranging
- ungulates. Journal of Applied Ecology 58: 690-698.
+ ungulates. Journal of Applied Ecology 58: 690-698. https://doi.org/10.1111/1365-2664.13806
 }

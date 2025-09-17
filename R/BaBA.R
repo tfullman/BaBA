@@ -577,11 +577,12 @@ BaBA_default <-
 #'to barrier analysis for Western Arctic Herd (WAH) caribou in northwestern
 #'Alaska. The analysis workflow of Xu et al. (2021), on which
 #'\code{BaBA_default} is built was reworked to improve accuracy for the WAH. See
-#'details below.
+#'details in Fullman et al. (2025) and below.
 #'
 #'@param animal An \code{sf POINT} object representing animal telemetry
 #'  locations with a column named \code{"Animal.ID"} that identifies each
-#'  individual and a column named \code{"date"} in \code{"POSIXct"} format. The
+#'  individual and a column named \code{"date"} in \code{"POSIXct"} format.
+#'  Location coordinate columns should be named \code{"x"} and \code{"y"}. The
 #'  coordinate reference system of \code{animal} should match \code{barrier},
 #'  preferably in a projected coordinate system.
 #'@param barrier An \code{sf LINESTRING} or \code{MULTILINESTRING} object
@@ -590,8 +591,8 @@ BaBA_default <-
 #'  is assumed to have a column labelled \code{"Name"} that uniquely identifies
 #'  each barrier segment, ideally with a single term (without spaces).
 #'@param d Barrier buffer size in meters if \code{barrier} has a projected
-#'  coordinate system CRS, in the units of \code{barrier} otherwise. Can take
-#'  a single integer value or vector of values of equal length to \code{barrier}.
+#'  coordinate system CRS, in the units of \code{barrier} otherwise. Can take a
+#'  single integer value or vector of values of equal length to \code{barrier}.
 #'@param interval Optional. Numeric value specifying the time interval of the
 #'  movement data (in units specified in \code{units}). If not specified, BaBA
 #'  will use the most frequent time difference between steps as \code{interval},
@@ -648,9 +649,7 @@ BaBA_default <-
 #'  \code{BaBA_caribou} differ from that used in \code{BaBA_default} and by Xu
 #'  et al. (2021).
 #'
-#'  \cr
-#'  \cr
-#'  \strong{Terminology}
+#'  \cr \cr \strong{Terminology}
 #'  \itemize{
 #'    \item{\emph{Encounter}}{
 #'      - One interaction of an animal with one or more barrier(s), consisting of the time from which an animal enters within a barrier buffer (\code{d}) until it leaves that buffer, with brief steps outside the buffer possible as long as they are within a pre-specified \code{tolerance}.
@@ -660,10 +659,8 @@ BaBA_default <-
 #'    }
 #'  }
 #'
-#'  \cr
-#'  \cr
-#'  \strong{Behavioral classifications}
-#'  
+#'  \cr \cr \strong{Behavioral classifications}
+#'
 #'  Potential values include:
 #'  \itemize{
 #'    \item{Normal movement}
@@ -691,10 +688,8 @@ BaBA_default <-
 #'  to be altered by the presence of a barrier. These consist of
 #'  “back-and-forth,” “bounce,” and “trace” behaviors.
 #'
-#'  \cr
-#'  \cr
-#'  \strong{Analysis approach}
-#'  
+#'  \cr \cr \strong{Analysis approach}
+#'
 #'  Extensive changes to the analysis approach were made in \code{BaBA_caribou}
 #'  compared to \code{BaBA_default} to better represent behavioral responses for
 #'  caribou of the Western Arctic Herd. These changes may not be appropriate for
@@ -753,21 +748,25 @@ BaBA_default <-
 #'        \item{\code{lcl_prop}} {Numeric value indicating the proportion of movement steps in the given burst that are parallel to the closest barrier. Used to distinguish \emph{trace} behavior, based on preliminary testing.}
 #'        \item{\code{easting}} {Numeric value indicating the x-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.}
 #'        \item{\code{northing}} {Numeric value indicating the y-coordinate of the first location of a given burst. Retained for legacy purposes as this occurs in \code{BaBA_default}.}
-#'      }  
+#'      }
 #'    }
 #'  }
 #'
 #'@export
-#' @importFrom magrittr %>%
+#'@importFrom magrittr %>%
 #'
-#'@references Joly K, Cameron MD. 2023. Caribou vital sign annual report for the
-#'  Arctic Network Inventory and Monitoring Program: September 2022–August 2023.
+#'@references Fullman TJ, Joly K, Gustine DD, Cameron MD. 2025. Behavioral
+#'  responses of migratory caribou to semi-permeable roads in arctic Alaska.
+#'  Scientific Reports 15, 24712. https://doi.org/10.1038/s41598-025-10216-6
+#'
+#'  Joly K, Cameron MD. 2023. Caribou vital sign annual report for the Arctic
+#'  Network Inventory and Monitoring Program: September 2022–August 2023.
 #'  Natural Resource Report NPS/ARCN/NRR—2023/2612. National Park Service, Fort
 #'  Collins, Colorado.
 #'
 #'  Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier Behaviour
 #'  Analysis (BaBA) reveals extensive effects of fencing on wide-ranging
-#'  ungulates. Journal of Applied Ecology 58: 690-698.
+#'  ungulates. Journal of Applied Ecology 58: 690-698. https://doi.org/10.1111/1365-2664.13806
 #'
 #'@examples
 #'\dontrun{
