@@ -21,8 +21,8 @@ A \code{list} with three components. See details in
 \description{
 This wrapper function allows running of the Barrier Behaviour Analysis (BaBA)
 using either the default approach outlined by Xu et al. (2021) when
-\code{caribou = FALSE} or with the modified approach of Fullman et al. (in
-review) tailored to caribou of the Western Arctic Herd (when \code{caribou = TRUE}).
+\code{caribou = FALSE} or with the modified approach of Fullman et al. (2025)
+tailored to caribou of the Western Arctic Herd (when \code{caribou = TRUE}).
 See documentation for \code{\link{BaBA_default}} and
 \code{\link{BaBA_caribou}} for details on the other parameters in the model.
 }
@@ -45,4 +45,13 @@ See documentation for \code{\link{BaBA_default}} and
                             img_prefix = 'wah_all', img_suffix = Sys.Date(),
                             img_background = list(ak_border))
   }
+}
+\references{
+Fullman TJ, Joly K, Gustine DD, Cameron MD. 2025. Behavioral
+ responses of migratory caribou to semi-permeable roads in arctic Alaska.
+ Scientific Reports 15, 24712. https://doi.org/10.1038/s41598-025-10216-6
+
+ Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier Behaviour
+ Analysis (BaBA) reveals extensive effects of fencing on wide-ranging
+ ungulates. Journal of Applied Ecology 58: 690-698. https://doi.org/10.1111/1365-2664.13806
 }
