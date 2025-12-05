@@ -1499,6 +1499,8 @@ BaBA_caribou <-
                   across(geometry,st_union) #adding this argument, from the error message, removes the error
                   ) %>% 
         sf::st_drop_geometry()
+      #see https://r-spatial.github.io/sf/news/index.html for more info on above argument needed
+      #came from version 1.0-15 update in 2023-12-18
       
       ## Classify the burst, assigning normal if all bar_lcl are NA
       ##Note: above operation for lcl_NA_check results in a tibble with two cols. So, need 'all' here for if statement to work
