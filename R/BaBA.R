@@ -1495,11 +1495,15 @@ BaBA_caribou <-
         burst_i %>% 
         dplyr::summarize(burstID = unique(burstID),
                   n_tot = dplyr::n(),
-                  lcl_NA = sum(is.na(bar_lcl))) %>% 
+                  lcl_NA = sum(is.na(bar_lcl)),
+                  across(geometry,st_union) #adding this argument, from the error message, removes the error
+                  ) %>% 
         sf::st_drop_geometry()
       
       ## Classify the burst, assigning normal if all bar_lcl are NA
-      if(lcl_NA_check$lcl_NA == lcl_NA_check$n_tot){
+      ##Note: above operation for lcl_NA_check results in a tibble with two cols. So, need 'all' here for if statement to work
+      #Not sure what original format was supposed to look like. Would be good to see what version of sf (and other packages) was being used when this was being developed.
+      if(all(lcl_NA_check$lcl_NA == lcl_NA_check$n_tot)){
         classification <- 'Normal_lclNA'
         
         ## If not, check whether the trace and duration thresholds were met and
