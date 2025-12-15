@@ -1286,7 +1286,7 @@ BaBA_caribou <-
         ## Reorder to match burst_i
         dplyr::select(Animal.ID:y, ptsID, season, bar_min, bar_dist_km, geometry) %>%
         ## Add the burstID
-        dplyr::mutate(burstID = encounter_i$burstID[1]) %>% 
+        dplyr::mutate(burstID = burst_i$burstID[1]) %>% 
         ## Combine with existing burst_i data
         dplyr::bind_rows(burst_i) %>% 
         ## Rearrange to be in ptsID order
