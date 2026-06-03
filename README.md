@@ -17,5 +17,7 @@ To install the latest development version of our modified BaBA, open an R sessio
 ## Relevant publications: 
 Fullman TJ, Joly K, Gustine DD, Cameron MD. 2025. Behavioral responses of migratory caribou to semi-permeable roads in arctic Alaska. Scientific Reports 15, 24712. https://doi.org/10.1038/s41598-025-10216-6
 
+Joly K, Beaupre C, Fullman TJ, Cameron MD, Barbour N, Gurarie E. 2026. Barrier impermeability is associated with migratory ungulate survival rates. Scientific Reports 16, 152. https://doi.org/10.1038/s41598-025-31911-4
+
 Xu W, Dejid N, Herrmann V, Sawyer H, Middleton AD. 2021. Barrier Behaviour Analysis (BaBA) reveals extensive effects of fencing on wide-ranging ungulates. Journal of Applied Ecology 58, 690-698. https://doi.org/10.1111/1365-2664.13806
 
