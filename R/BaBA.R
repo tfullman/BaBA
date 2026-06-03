@@ -1201,8 +1201,7 @@ BaBA_caribou <-
       bursts_updated_cross <- rbind(bursts_updated_cross, encounter_i)
     }
     
-    ## Incorporate the extra columns from the barrier and crossing objects into
-    ## encounter_complete and use them to make a joint burstID column
+    ## Incorporate the extra columns from the barrier object into encounter_complete
     encounter_complete <-
       encounter_complete %>% 
       ## Make a unique column that is Animal.ID_ptsID and use that to merge the
@@ -1213,13 +1212,34 @@ BaBA_caribou <-
           dplyr::mutate(join_col = paste(Animal.ID, ptsID, sep = '_')) %>% 
           sf::st_drop_geometry() %>% 
           dplyr::select(join_col, bar_dif),
-        by = 'join_col') %>% 
-      dplyr::left_join(
-        bursts_updated_cross %>% 
-          dplyr::mutate(join_col = paste(Animal.ID, ptsID, sep = '_')) %>% 
-          sf::st_drop_geometry() %>% 
-          dplyr::select(join_col, cross_ind, cross_true, cross_bar, cross_x, cross_y, cumcross),
-        by = 'join_col') %>% 
+        by = 'join_col')
+    
+    ## Incorporate the extra columns from the crossing object, if any crossings
+    ## occurred across the dataset, into encounter_complete
+    if(!is.null(bursts_updated_cross)){
+      encounter_complete <-
+        encounter_complete %>% 
+        dplyr::left_join(
+          bursts_updated_cross %>% 
+            dplyr::mutate(join_col = paste(Animal.ID, ptsID, sep = '_')) %>% 
+            sf::st_drop_geometry() %>% 
+            dplyr::select(join_col, cross_ind, cross_true, cross_bar, cross_x, cross_y, cumcross),
+          by = 'join_col')
+    } else{
+      encounter_complete$cumcross <- NA
+      encounter_complete$cross_ind.y <- NA
+      encounter_complete$cross_true.y <- NA
+      encounter_complete$cross_bar.y <- NA
+      encounter_complete$cross_x.y <- NA
+      encounter_complete$cross_y.y <- NA
+      encounter_complete$cross_ind.x <- encounter_complete$cross_ind
+      encounter_complete$cross_true.x <- encounter_complete$cross_true
+    }
+    
+    ## Use the added columns to make a joint burstID column that accounts for bursts
+    ## splitting with proximity to barriers and/or crossings
+    encounter_complete <-
+      encounter_complete %>% 
       ## Create updated columns with the desired information
       dplyr::mutate(
         ## Deal with NAs in bar_dif and cumcross, to allow summing
@@ -1246,7 +1266,6 @@ BaBA_caribou <-
       dplyr::select(Animal.ID:geometry, burstID = burstID2, cross_ind,
                     cross_true, cross_bar = cross_bar.y, cross_x = cross_x.y,
                     cross_y = cross_y.y)
-    
     
     ## Rename as encounter (encounter_complete may be bigger as it includes
     ## extra points that are within tolerance)
