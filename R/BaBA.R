@@ -1528,6 +1528,12 @@ BaBA_caribou <-
       } else if(lcl_prop >= 0.2 & duration >= 72){
         classification <- 'Trace'
         
+        ## If there are not enough seasonal locations outside of buffers to
+        ## calculate lower and upper bounds of normal movement, classify as
+        ## unknown
+      } else if(is.na(lower) | is.na(upper)){
+        classification <- 'Unknown_not_enough_seasonal_pts_outside_buffers'
+        
         ## Classify normal movement
       } else if(straightness_i >= lower & straightness_i <= upper){
         classification <- "Normal_Movement"
