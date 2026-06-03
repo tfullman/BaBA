@@ -1536,7 +1536,7 @@ BaBA_caribou <-
         
         ## Classify normal movement
       } else if(straightness_i >= lower & straightness_i <= upper){
-        classification <- "Normal_Movement"
+        classification <- 'Normal_Movement'
         
         ## Classify straight bursts (trace, quick cross) 
       } else if(straightness_i > upper){
