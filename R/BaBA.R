@@ -1105,7 +1105,7 @@ BaBA_caribou <-
       }
       
       ## Add into encounter_complete
-      if(i == unique(encounter$Animal.ID[1])) encounter_complete <- encounter_i else encounter_complete <- rbind(encounter_complete, encounter_i)
+      if(i == encounter$Animal.ID[1]) encounter_complete <- encounter_i else encounter_complete <- rbind(encounter_complete, encounter_i)
     }
     
     ## Add indicators to encounter_complete of whether each location represents
