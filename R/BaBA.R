@@ -906,15 +906,17 @@ BaBA_caribou <-
         ## Convert units to degrees in the 360 deg range
         circular::conversion.circular(units = 'degrees') %% 360
       
-      ## Identify the distance that should be extended around the barrier. For
-      ## most barriers this should be 2d, using the barrier-specific d buffer
-      ## distance. However, the Dalton Highway is so large that this needs to be
-      ## increased. Preliminary testing found that 10d is suitable.
+      ## Identify the distance that should be extended around the barrier. The
+      ## more variable the barrier is in the direction orthagonal to the
+      ## predominant barrier direction, the larger this distance should be.
+      ## Based on preliminary testing for the Dalton Highway (the largest road
+      ## in our dataset), this should be 10d, using the barrier-specific d
+      ## buffer distance.
       d_tmp <- 
         ifelse(length(d) > 1,
                d[which(barrier$Name == bar_tmp$Name[1])],
                d)
-      d_target <- ifelse(bar_tmp$Name[1] == 'Dalton', 10*d_tmp, 2*d_tmp)
+      d_target <- 10*d_tmp
       
       ## First extend the barrier on either end in the predominant barrier
       ## direction
