@@ -1577,7 +1577,10 @@ BaBA_caribou <-
           sf::st_buffer(dist = d_tmp, nQuadSegs = 5) %>%   ## Note that nQuadSegs is set to 5 as this was the default value for rgeos::gBuffer in previous versions of BaBA and matches what was done above for the barrier
           sf::st_union()
         
-        ## Extract barrier points that fall inside the buffer. Explicitly suppress constant geometry assumption warning by confirming attribute is constant throughout the geometry. See https://github.com/r-spatial/sf/issues/406 for details.
+        ## Extract barrier points that fall inside the buffer. Explicitly
+        ## suppress constant geometry assumption warning by confirming attribute
+        ## is constant throughout the geometry. See https://github.com/r-spatial/sf/issues/406
+        ## for details.
         sf::st_agr(barrier_pts) <- 'constant'   
         barrier_i <- 
           sf::st_intersection(barrier_pts, barrier_i_buf) %>% 
@@ -1676,9 +1679,13 @@ BaBA_caribou <-
           ## comparison classify as unknown
           classification <- 'Unknown_insufficient_n'
           
-          ## If the sd is 0 make this normal movement because there is only a
-          ## single step
-        } else if(burst_i1_sd == 0){
+          ## If the sd is effectively 0 make this normal movement because there
+          ## is no variation in the movement step. This accounts for situations
+          ## in which the animal takes a brief step into a buffer and right back
+          ## out, without approaching or clearly being affected by the barrier.
+          ## Note that values may be true 0 or effectively zero (very small
+          ## <<0.001) and conform with this behavior.
+        } else if(burst_i1_sd < 0.001){
           classification <- 'Normal_sd0'
           
           ## Is the mean of the second group's angles outside the limits of the
